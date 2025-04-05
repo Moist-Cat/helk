@@ -1,0 +1,17 @@
+# vim
+*~
+*.swo
+*.swp
+
+# C
+*.o
+*.d
+
+# lex yacc
+src/parser.c
+src/lexer.c
+
+#
+out/
+build/
+comp
