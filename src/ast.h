@@ -2,29 +2,53 @@
 #define AST_H
 
 typedef enum {
-    OP_ADD,
+    OP_ADD = 100,
     OP_SUB,
     OP_MUL,
     OP_DIV
 } ASTBinaryOp;
 
+typedef enum {
+    AST_NUMBER,
+    AST_BINARY_OP,
+    AST_FUNCTION_DEF,
+    AST_FUNCTION_CALL,
+    AST_VARIABLE,
+    AST_VARIABLE_DEF
+} ASTNodeType;
+
 typedef struct ASTNode {
-    enum {
-        AST_NUMBER,
-        AST_BINARY_OP
-    } type;
+    ASTNodeType type;
     union {
-        int number;
+        double number;
         struct {
             struct ASTNode *left;
             struct ASTNode *right;
             ASTBinaryOp op;
         } binary_op;
+        struct {
+            char *name;
+            struct ASTNode *body;
+        } function_def;
+        struct {
+            char *name;
+        } function_call;
+        struct {
+            char *name;
+        } variable;
+        struct {
+            char *name;
+            struct ASTNode *body;
+        } variable_def;
     };
 } ASTNode;
 
-ASTNode *create_ast_number(int value);
+ASTNode *create_ast_number(double value);
 ASTNode *create_ast_binary_op(ASTNode *left, ASTNode *right, ASTBinaryOp op);
+ASTNode *create_ast_function_def(char *name, ASTNode *body);
+ASTNode *create_ast_function_call(char *name);
+ASTNode *create_ast_variable(char *name);
+ASTNode *create_ast_variable_def(char *name, ASTNode *body);
 void free_ast(ASTNode *node);
 
 #endif

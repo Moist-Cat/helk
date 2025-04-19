@@ -39,7 +39,7 @@
 # define YY_YY_SRC_PARSER_H_INCLUDED
 /* Debug traces.  */
 #ifndef YYDEBUG
-# define YYDEBUG 0
+# define YYDEBUG 1
 #endif
 #if YYDEBUG
 extern int yydebug;
@@ -55,12 +55,17 @@ extern int yydebug;
     YYerror = 256,                 /* error  */
     YYUNDEF = 257,                 /* "invalid token"  */
     NUMBER = 258,                  /* NUMBER  */
-    PLUS = 259,                    /* PLUS  */
-    MINUS = 260,                   /* MINUS  */
-    MULTIPLY = 261,                /* MULTIPLY  */
-    DIVIDE = 262,                  /* DIVIDE  */
-    LPAREN = 263,                  /* LPAREN  */
-    RPAREN = 264                   /* RPAREN  */
+    IDENTIFIER = 259,              /* IDENTIFIER  */
+    PLUS = 260,                    /* PLUS  */
+    MINUS = 261,                   /* MINUS  */
+    MULTIPLY = 262,                /* MULTIPLY  */
+    DIVIDE = 263,                  /* DIVIDE  */
+    LPAREN = 264,                  /* LPAREN  */
+    RPAREN = 265,                  /* RPAREN  */
+    FUNCTION = 266,                /* FUNCTION  */
+    ARROW = 267,                   /* ARROW  */
+    LET = 268,                     /* LET  */
+    EQUALS = 269                   /* EQUALS  */
   };
   typedef enum yytokentype yytoken_kind_t;
 #endif
@@ -69,12 +74,13 @@ extern int yydebug;
 #if ! defined YYSTYPE && ! defined YYSTYPE_IS_DECLARED
 union YYSTYPE
 {
-#line 7 "src/parser.y"
+#line 22 "src/parser.y"
 
-    int num;           // For NUMBER tokens
+    double num;           // For NUMBER tokens
+    char* str;
     ASTNode* node;     // For AST nodes (expressions)
 
-#line 78 "src/parser.h"
+#line 84 "src/parser.h"
 
 };
 typedef union YYSTYPE YYSTYPE;
@@ -83,8 +89,13 @@ typedef union YYSTYPE YYSTYPE;
 #endif
 
 
-extern YYSTYPE yylval;
 
-int yyparse (void);
+int yyparse (void *scanner);
+/* "%code provides" blocks.  */
+#line 18 "src/parser.y"
+
+    int parse(char *text, ASTNode **node);
+
+#line 100 "src/parser.h"
 
 #endif /* !YY_YY_SRC_PARSER_H_INCLUDED  */

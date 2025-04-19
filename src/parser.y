@@ -2,24 +2,60 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include "ast.h"
+#include "parser.h"
+#include "lexer.h"
+
+ASTNode *root;
+extern int yylex();
+void yyerror(void *scanner, const char *s) { printf("ERROR: %s\n", s); }
 %}
 
+%define api.pure
+%debug
+%lex-param {void *scanner}
+%parse-param {void *scanner}
+
+%code provides {
+    int parse(char *text, ASTNode **node);
+}
+
 %union {
-    int num;           // For NUMBER tokens
+    double num;           // For NUMBER tokens
+    char* str;
     ASTNode* node;     // For AST nodes (expressions)
 }
 
-%token <num> NUMBER   // Associate NUMBER with the "num" field in the union
+%token <num> NUMBER
+%token <str> IDENTIFIER
 %token PLUS MINUS MULTIPLY DIVIDE
 %token LPAREN RPAREN
+%token FUNCTION ARROW
+%token LET EQUALS
 
-%type <node> expression  // Associate expressions with the "node" field
-%type <node> program    // Add this line: program non-terminal uses "node" field
+%type <node> expression
+%type <node> program
+%type <node> function_def
+%type <node> variable_def
+%type <str> identifier
 
 %%
 
 program:
-    expression          { $$ = $1; }
+    function_def  { root = $1; }
+    | variable_def {root = $1; }
+    | expression { root = $1; }
+    ;
+
+function_def:
+    FUNCTION identifier LPAREN RPAREN ARROW expression
+        { $$ = create_ast_function_def($2, $6); free($2); }
+    ;
+
+variable_def:
+    LET identifier EQUALS expression { $$ = create_ast_variable_def($2, $4); }
+
+identifier:
+    IDENTIFIER { $$ = strdup($1); }
     ;
 
 expression:
@@ -28,12 +64,32 @@ expression:
     | expression MINUS expression  { $$ = create_ast_binary_op($1, $3, OP_SUB); }
     | expression MULTIPLY expression { $$ = create_ast_binary_op($1, $3, OP_MUL); }
     | expression DIVIDE expression { $$ = create_ast_binary_op($1, $3, OP_DIV); }
+    | identifier LPAREN RPAREN    { $$ = create_ast_function_call($1); free($1); }
+    | identifier {$$ = create_ast_variable($1); }
     | LPAREN expression RPAREN     { $$ = $2; }
     ;
 
 %%
 
-int yyerror(const char *s) {
-    fprintf(stderr, "Error: %s\n", s);
-    return 0;
+int parse(char *text, ASTNode **node)
+{
+    yydebug = 1;
+    
+    // Parse using Bison.
+    yyscan_t scanner;
+    yylex_init(&scanner);
+    YY_BUFFER_STATE buffer = yy_scan_string(text, scanner);
+    int rc = yyparse(scanner);
+    yy_delete_buffer(buffer, scanner);
+    yylex_destroy(scanner);
+    
+    // If parse was successful, return root node.
+    if(rc == 0) {
+        *node = root;
+        return 0;
+    }
+    // Otherwise return error.
+    else {
+        return -1;
+    }
 }

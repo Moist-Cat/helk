@@ -10,6 +10,7 @@
 # lex yacc
 src/parser.c
 src/lexer.c
+src/parser.output
 
 #
 out/
