@@ -51,10 +51,10 @@ typedef struct ASTNode {
 
 ASTNode *create_ast_number(int value);
 ASTNode *create_ast_binary_op(ASTNode *left, ASTNode *right, ASTBinaryOp op);
-ASTNode *create_ast_function_def(char *name, ASTNode *body);
+ASTNode *create_ast_function_def(char *name, ASTNode *body, char **args, unsigned int arg_count);
 ASTNode *create_ast_function_call(char *name, ASTNode **args, unsigned int arg_count);
 ASTNode *create_ast_variable(char *name);
-ASTNode *create_ast_variable_def(char *name, ASTNode *body, char **args, unsigned int arg_count);
+ASTNode *create_ast_variable_def(char *name, ASTNode *body);
 void free_ast(ASTNode *node);
 
 #endif

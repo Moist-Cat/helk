@@ -63,7 +63,8 @@ program: function_def  { root = $1; }
        | expression SEMICOLON{ root = $1; }
        ;
 
-function_def: FUNCTION identifier LPAREN decl_args RPAREN ARROW expression { $$ = create_ast_function_def($2, $7); free($2); }
+function_def:
+    FUNCTION identifier LPAREN decl_args RPAREN ARROW expression { $$ = create_ast_function_def($2, $7, $4.args, $4.count); free($2); free($4.args); }
             ;
 
 call_args: /* nothing! */ { $$.count = 0; $$.args = NULL; }

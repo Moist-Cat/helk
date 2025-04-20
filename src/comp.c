@@ -25,13 +25,13 @@ int main(int argc, char** argv) {
     int is_top_level = (ast->type != AST_FUNCTION_DEF);
     if(is_top_level == 1) {
         // easy
-        ast = create_ast_function_def("main", ast);
+        ast = create_ast_function_def("main", ast, NULL, 0);
     }
     else {
         // the body is a function call
         codegen(&ctx, ast);
         ast = create_ast_function_def(
-            "main", create_ast_function_call(ast->function_def.name, NULL, 0)
+            "main", create_ast_function_call(ast->function_def.name, NULL, 0), NULL, 0
          );
     }
 

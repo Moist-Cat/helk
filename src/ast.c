@@ -23,7 +23,7 @@ ASTNode *create_ast_function_def(char *name, ASTNode *body, char **args, unsigne
     node->function_def.name = strdup(name);
     node->function_def.body = body;
 
-    // XXX shallow copy
+    // shallow copy again
     node->function_def.args = malloc(sizeof(ASTNode) * arg_count);
     memcpy(node->function_def.args, args, sizeof(ASTNode) * arg_count);
     node->function_def.arg_count = arg_count;
