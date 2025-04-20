@@ -1,6 +1,7 @@
 #include "ast.h"
 #include <stdlib.h>
 #include <string.h>
+#include <stdio.h>
 
 ASTNode *create_ast_block(ASTNode **block, unsigned int stmt_count) {
     ASTNode *node = malloc(sizeof(ASTNode));

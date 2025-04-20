@@ -4,7 +4,7 @@
 #include <stdio.h>
 #include <string.h>
 
-static ASTNode* create_main_function(ASTNode** statements, size_t count) {
+static ASTNode* create_main_function(ASTNode** statements, unsigned int count) {
     ASTNode* main_block = malloc(sizeof(ASTNode));
     main_block->type = AST_BLOCK;
     main_block->block.statements = statements;
@@ -14,6 +14,9 @@ static ASTNode* create_main_function(ASTNode** statements, size_t count) {
     main_func->type = AST_FUNCTION_DEF;
     main_func->function_def.name = strdup("main");
     main_func->function_def.body = main_block;
+    // explicit
+    main_func->function_def.args = NULL;
+    main_func->function_def.arg_count = 0;
     
     return main_func;
 }
@@ -21,10 +24,10 @@ static ASTNode* create_main_function(ASTNode** statements, size_t count) {
 void sa_block(ASTNode *node) {
     ASTNode **func_defs = NULL;
     ASTNode **main_body = NULL;
-    size_t func_count = 0, main_count = 0;
+    unsigned int func_count = 0, main_count = 0;
 
     // Separate statements into function definitions and others
-    for (size_t i = 0; i < node->block.stmt_count; i++) {
+    for (unsigned int i = 0; i < node->block.stmt_count; i++) {
         ASTNode *stmt = node->block.statements[i];
         if (stmt->type == AST_FUNCTION_DEF) {
             func_defs = realloc(func_defs, (func_count + 1) * sizeof(ASTNode*));
@@ -36,7 +39,8 @@ void sa_block(ASTNode *node) {
     }
 
     // Create new statements array
-    size_t new_count = func_count + (main_count > 0 ? 1 : 0);
+    // always add a main function
+    unsigned int new_count = func_count + 1;
     ASTNode **new_statements = malloc(new_count * sizeof(ASTNode*));
 
     // Copy function definitions
@@ -44,11 +48,10 @@ void sa_block(ASTNode *node) {
         memcpy(new_statements, func_defs, func_count * sizeof(ASTNode*));
     }
 
-    // Add main function if needed
-    if (main_count > 0) {
-        ASTNode* main_func = create_main_function(main_body, main_count);
-        new_statements[func_count] = main_func;
-    }
+    // Add main function (always)
+    fprintf(stderr, "\n\nnoger %d\n\n", main_count);
+    ASTNode* main_func = create_main_function(main_body, main_count);
+    new_statements[func_count] = main_func;
 
     // Replace original block contents
     free(node->block.statements);
@@ -57,6 +60,8 @@ void sa_block(ASTNode *node) {
 
     // Free temporary arrays (not the nodes!)
     free(func_defs);
+    // we literally just give the pointer to the main
+    // function so we can't free it
     //free(main_body);
 }
 

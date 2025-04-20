@@ -44,7 +44,7 @@ static const char* find_symbol(CodegenContext* ctx, const char* name) {
     return NULL;
 }
 
-static char* get_call_args(CodegenContext* ctx, ASTNode** args, size_t arg_count) {
+static char* get_call_args(CodegenContext* ctx, ASTNode** args, unsigned int arg_count) {
     if (arg_count == 0) return strdup("");
 
     char** temps = malloc(arg_count * sizeof(char*));
@@ -64,6 +64,31 @@ static char* get_call_args(CodegenContext* ctx, ASTNode** args, size_t arg_count
         int written = sprintf(ptr, "i32 %s%s", temps[i], (i < arg_count-1) ? ", " : "");
         ptr += written;
         free(temps[i]);
+    }
+
+    free(temps);
+    return result;
+}
+
+static char* get_def_args(char** args, unsigned int arg_count) {
+    if (arg_count == 0) return strdup("");
+
+    char** temps = malloc(arg_count * sizeof(char*));
+    size_t total_len = 0;
+
+    // Generate code for all arguments first
+    for (size_t i = 0; i < arg_count; i++) {
+        temps[i] = args[i];
+        total_len += strlen(temps[i]) + 6; // XXX "i32 , " per argument
+    }
+
+    // Build arguments string
+    char* result = malloc(total_len + 1);
+    char* ptr = result;
+
+    for (size_t i = 0; i < arg_count; i++) {
+        int written = sprintf(ptr, "i32 %s%s%s", "%", temps[i], (i < arg_count-1) ? ", " : "");
+        ptr += written;
     }
 
     free(temps);
@@ -103,9 +128,10 @@ static char* gen_expr(CodegenContext* ctx, ASTNode* node) {
         case AST_VARIABLE: {
             const char* var_temp = find_symbol(ctx, node->variable.name);
             if (!var_temp) {
-                fprintf(stderr, "Error: Undefined variable '%s'\n", node->variable.name);
-                free(temp);
-                return NULL;
+                fprintf(stderr, "WARNING: Undefined variable '%s'\n", node->variable.name);
+
+                emit(ctx, "  %s = add i32 %s%s, 0  ; Load variable\n", temp, "%", node->variable.name);
+                return temp;
             }
             emit(ctx, "  %s = add i32 %s, 0  ; Load variable\n", temp, var_temp);
             return temp;
@@ -151,7 +177,17 @@ void codegen_stmt(CodegenContext* ctx, ASTNode* node) {
     switch (node->type) {
         case AST_FUNCTION_DEF: {
             // should ONLY contain functions after sem_anal
-            emit(ctx, "\ndefine i32 @%s() {\n", node->function_def.name);
+
+            unsigned int arg_count = node->function_def.arg_count;
+
+            char* def_args = get_def_args(node->function_def.args, arg_count);
+
+            if (arg_count > 0) {
+                emit(ctx, "\ndefine i32 @%s(%s) {\n", node->function_def.name, def_args);
+            }
+            else {
+                emit(ctx, "\ndefine i32 @%s() {\n", node->function_def.name);
+            }
             emit(ctx, "entry:\n");
             
             char* result = gen_expr(ctx, node->function_def.body);
@@ -170,6 +206,9 @@ void codegen_stmt(CodegenContext* ctx, ASTNode* node) {
         }
         case AST_VARIABLE_DEF: {
             // notice that we perform NO operation here
+            // since storing the value is handled by default
+            // (we have to store whatever is inside in a temp anyway)
+            // So we simply rename the variable.
             char* value_temp = gen_expr(ctx, node->variable_def.body);
             add_symbol(ctx, node->variable_def.name, value_temp);
             emit(ctx, "  ; Variable assignment: %s = %s\n", 

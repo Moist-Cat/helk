@@ -63,8 +63,7 @@ void yyerror(YYLTYPE *loc, void *scanner, const char *s);
 
 %%
 
-program:
-       | statement_block { root = create_ast_block($1.statements, $1.count); free($1.statements);}
+program: statement_block { root = create_ast_block($1.statements, $1.count); free($1.statements);}
        ;
 
 statement_block: /* nothing */ { $$.count = 0; $$.statements = NULL; }
@@ -82,8 +81,7 @@ statement_block: /* nothing */ { $$.count = 0; $$.statements = NULL; }
                 }
                ;
 
-statement:
-         | variable_def { $$ = $1; }
+statement: variable_def { $$ = $1; }
          | expression {$$ = $1; }
          | function_def {$$ = $1; }
          ;
