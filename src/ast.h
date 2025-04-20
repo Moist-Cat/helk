@@ -20,7 +20,7 @@ typedef enum {
 typedef struct ASTNode {
     ASTNodeType type;
     union {
-        double number;
+        int number;
         struct {
             struct ASTNode *left;
             struct ASTNode *right;
@@ -28,13 +28,19 @@ typedef struct ASTNode {
         } binary_op;
         struct {
             char *name;
+            char **args;
+            unsigned int arg_count;
             struct ASTNode *body;
         } function_def;
         struct {
             char *name;
+            unsigned int arg_count;
+            // array of nodes
+            struct ASTNode **args;
         } function_call;
         struct {
             char *name;
+
         } variable;
         struct {
             char *name;
@@ -43,12 +49,12 @@ typedef struct ASTNode {
     };
 } ASTNode;
 
-ASTNode *create_ast_number(double value);
+ASTNode *create_ast_number(int value);
 ASTNode *create_ast_binary_op(ASTNode *left, ASTNode *right, ASTBinaryOp op);
 ASTNode *create_ast_function_def(char *name, ASTNode *body);
-ASTNode *create_ast_function_call(char *name);
+ASTNode *create_ast_function_call(char *name, ASTNode **args, unsigned int arg_count);
 ASTNode *create_ast_variable(char *name);
-ASTNode *create_ast_variable_def(char *name, ASTNode *body);
+ASTNode *create_ast_variable_def(char *name, ASTNode *body, char **args, unsigned int arg_count);
 void free_ast(ASTNode *node);
 
 #endif

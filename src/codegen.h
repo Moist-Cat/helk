@@ -2,8 +2,23 @@
 #define CODEGEN_H
 
 #include "ast.h"
-#include <llvm-c/Core.h>
+#include <stdio.h>
 
-LLVMValueRef codegen(ASTNode *node, LLVMModuleRef module, LLVMBuilderRef builder);
+typedef struct {
+    char* name;
+    char* temp;
+} Symbol;
+
+typedef struct {
+    FILE* output;
+    int temp_counter;
+    Symbol* symbols;
+    size_t symbols_size;
+} CodegenContext;
+
+void codegen_init(CodegenContext* ctx, FILE* output);
+void codegen_cleanup(CodegenContext* ctx);
+static char* gen_expr(CodegenContext* ctx, ASTNode* node);
+void codegen(CodegenContext* ctx, ASTNode* node);
 
 #endif

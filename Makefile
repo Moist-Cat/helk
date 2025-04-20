@@ -1,4 +1,4 @@
-CC=gcc
+CC=clang
 CXX=g++
 
 CFLAGS=-g -Wall -Wextra
@@ -12,10 +12,12 @@ YACC_OBJECTS=$(patsubst %.y,%.c,${YACC_SOURCES}) $(patsubst %.y,%.h,${YACC_SOURC
 
 SOURCES=$(wildcard src/**/*.c src/*.c)
 OBJECTS=$(patsubst %.c,%.o,${SOURCES}) $(patsubst %.l,%.o,${LEX_SOURCES}) $(patsubst %.y,%.o,${YACC_SOURCES})
-LIB_SOURCES=$(filter-out comp.c,${SOURCES})
-LIB_OBJECTS=$(filter-out comp.o,${OBJECTS})
+LIB_SOURCES=$(filter-out src/comp.c,${SOURCES})
+LIB_OBJECTS=$(filter-out src/comp.o,${OBJECTS})
 TEST_SOURCES=$(wildcard tests/*_tests.c)
 TEST_OBJECTS=$(filter-out tests/codegen_tests,$(patsubst %.c,%,${TEST_SOURCES}))
+BUILTINS = src/builtins.c
+BUILTINS_OBJ = src/builtins.o
 
 LEX=flex
 YACC=bison
@@ -28,17 +30,26 @@ LLVM_LINK_FLAGS=`llvm-config --libs --cflags --ldflags core analysis executionen
 
 all: build/libcomp.a build/comp ${OBJECTS}
 
+run: build runtime
+	./build/comp "print(5 + 3);" > out.ll
+	llc -filetype=obj out.ll -o out.o
+	$(CC) out.o src/builtins.o -o out
+
+runtime: $(HELPERS_OBJ)
 
 # binaries
 
-build/libcomp.a: build_dir ${LIB_OBJECTS}
+src/builtins.o: $(BUILTINS)
+	$(CC) -c -o $@ $<
+
+build/libcomp.a: ${LIB_OBJECTS} build_dir
 	rm -f build/libcomp.a
 	ar rcs $@ ${LIB_OBJECTS}
 	ranlib $@
 
 src/comp.c: ${LEX_OBJECTS}
 
-src/comp.o: src/comp.c
+src/comp.o: src/comp.c build/libcomp.a
 	${CC} ${LLVM_CC_FLAGS} ${CFLAGS} -c -o $@ $^
 
 build/comp: ${OBJECTS}
@@ -70,4 +81,4 @@ src/codegen.o: src/codegen.c
 # clean
 
 clean: 
-	rm -rf comp ${OBJECTS} ${LEX_OBJECTS} ${YACC_OBJECTS}
+	rm -rf ${OBJECTS} ${LEX_OBJECTS} ${YACC_OBJECTS} build/libcomp.a build/comp

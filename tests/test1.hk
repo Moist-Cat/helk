@@ -1,0 +1,1 @@
+function master() => let a = 10 + 5 * 2

@@ -63,9 +63,11 @@ extern int yydebug;
     LPAREN = 264,                  /* LPAREN  */
     RPAREN = 265,                  /* RPAREN  */
     FUNCTION = 266,                /* FUNCTION  */
-    ARROW = 267,                   /* ARROW  */
-    LET = 268,                     /* LET  */
-    EQUALS = 269                   /* EQUALS  */
+    COMMA = 267,                   /* COMMA  */
+    ARROW = 268,                   /* ARROW  */
+    LET = 269,                     /* LET  */
+    EQUALS = 270,                  /* EQUALS  */
+    SEMICOLON = 271                /* SEMICOLON  */
   };
   typedef enum yytokentype yytoken_kind_t;
 #endif
@@ -74,13 +76,22 @@ extern int yydebug;
 #if ! defined YYSTYPE && ! defined YYSTYPE_IS_DECLARED
 union YYSTYPE
 {
-#line 22 "src/parser.y"
+#line 28 "src/parser.y"
 
-    double num;           // For NUMBER tokens
+    int num;
     char* str;
-    ASTNode* node;     // For AST nodes (expressions)
+    ASTNode* node;
+    struct {
+        ASTNode **args;
+        unsigned int count;
+    } call_args;
+    struct {
+        char **args;
+        unsigned int count;
+    } decl_args;
 
-#line 84 "src/parser.h"
+
+#line 95 "src/parser.h"
 
 };
 typedef union YYSTYPE YYSTYPE;
@@ -88,14 +99,28 @@ typedef union YYSTYPE YYSTYPE;
 # define YYSTYPE_IS_DECLARED 1
 #endif
 
+/* Location type.  */
+#if ! defined YYLTYPE && ! defined YYLTYPE_IS_DECLARED
+typedef struct YYLTYPE YYLTYPE;
+struct YYLTYPE
+{
+  int first_line;
+  int first_column;
+  int last_line;
+  int last_column;
+};
+# define YYLTYPE_IS_DECLARED 1
+# define YYLTYPE_IS_TRIVIAL 1
+#endif
+
 
 
 int yyparse (void *scanner);
 /* "%code provides" blocks.  */
-#line 18 "src/parser.y"
+#line 24 "src/parser.y"
 
     int parse(char *text, ASTNode **node);
 
-#line 100 "src/parser.h"
+#line 125 "src/parser.h"
 
 #endif /* !YY_YY_SRC_PARSER_H_INCLUDED  */

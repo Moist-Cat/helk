@@ -1,99 +1,188 @@
 #include "codegen.h"
-#include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdarg.h>
 
-typedef struct {
-    char *name;
-    LLVMValueRef value;
-} Symbol;
+static void emit(CodegenContext* ctx, const char* format, ...) {
+    va_list args;
+    va_start(args, format);
+    vfprintf(ctx->output, format, args);
+    va_end(args);
+}
 
-Symbol *functions = NULL;
-size_t num_functions = 0;
+static char* new_temp(CodegenContext* ctx) {
+    char* temp = malloc(16);
+    sprintf(temp, "%%t%d", ctx->temp_counter++);
+    return temp;
+}
 
-size_t num_vars = 0;
-Symbol *symbol_table = NULL;
-
-LLVMValueRef codegen(ASTNode *node, LLVMModuleRef module, LLVMBuilderRef builder) {
-	switch (node->type) {
-		case AST_NUMBER:
-        	return LLVMConstReal(LLVMDoubleType(), node->number);
-    	case AST_BINARY_OP:
-		    LLVMValueRef left = codegen(node->binary_op.left, module, builder);
-		    LLVMValueRef right = codegen(node->binary_op.right, module, builder);
-		    switch (node->binary_op.op) {
-		        case OP_ADD: return LLVMBuildAdd(builder, left, right, "addtmp");
-		        case OP_SUB: return LLVMBuildSub(builder, left, right, "subtmp");
-		        case OP_MUL: return LLVMBuildMul(builder, left, right, "multmp");
-		        case OP_DIV: return LLVMBuildUDiv(builder, left, right, "divtmp");
-		        default: return NULL;
-		     }
-        case AST_FUNCTION_DEF: {
-            // Create function type (no args, returns int)
-            LLVMTypeRef ret_type = LLVMDoubleType();
-            LLVMTypeRef func_type = LLVMFunctionType(ret_type, NULL, 0, 0);
-            
-            // Create function
-            LLVMValueRef func = LLVMAddFunction(module, node->function_def.name, func_type);
-            
-            // Create entry block
-			LLVMBasicBlockRef block = LLVMAppendBasicBlock(func, "entry");
-			LLVMPositionBuilderAtEnd(builder, block);
-            
-            // Generate body
-            LLVMValueRef body_val = codegen(node->function_def.body, module, builder);
-            LLVMBuildRet(builder, body_val);
-
-            // Store function reference
-            functions = realloc(functions, ++num_functions * sizeof(Symbol));
-            functions[num_functions-1] = (Symbol){
-                .name = node->function_def.name,
-                .value = func
-            };
-            
-            return func;
+static void add_symbol(CodegenContext* ctx, const char* name, const char* temp) {
+    // Check for existing symbol
+    for (size_t i = 0; i < ctx->symbols_size; i++) {
+        if (strcmp(ctx->symbols[i].name, name) == 0) {
+            fprintf(stderr, "Error: Redeclaration of '%s'\n", name);
+            return;
         }
-        case AST_FUNCTION_CALL: {
-            // Look up function
-            for (size_t i = 0; i < num_functions; i++) {
-                if (strcmp(functions[i].name, node->function_call.name) == 0) {
-                    return LLVMBuildCall2(builder, 
-                        LLVMDoubleType(),
-                        functions[i].value, NULL, 0, "calltmp");
-                }
+    }
+    
+    // Add new symbol
+    ctx->symbols = realloc(ctx->symbols, (ctx->symbols_size + 1) * sizeof(Symbol));
+    ctx->symbols[ctx->symbols_size] = (Symbol){
+        .name = strdup(name),
+        .temp = strdup(temp)
+    };
+    ctx->symbols_size++;
+}
+
+static const char* find_symbol(CodegenContext* ctx, const char* name) {
+    for (size_t i = 0; i < ctx->symbols_size; i++) {
+        if (strcmp(ctx->symbols[i].name, name) == 0) {
+            return ctx->symbols[i].temp;
+        }
+    }
+    return NULL;
+}
+
+static char* get_call_args(CodegenContext* ctx, ASTNode** args, size_t arg_count) {
+    if (arg_count == 0) return strdup("");
+
+    char** temps = malloc(arg_count * sizeof(char*));
+    size_t total_len = 0;
+
+    // Generate code for all arguments first
+    for (size_t i = 0; i < arg_count; i++) {
+        temps[i] = gen_expr(ctx, args[i]);
+        total_len += strlen(temps[i]) + 6; // XXX "i32 , " per argument
+    }
+
+    // Build arguments string
+    char* result = malloc(total_len + 1);
+    char* ptr = result;
+
+    for (size_t i = 0; i < arg_count; i++) {
+        int written = sprintf(ptr, "i32 %s%s", temps[i], (i < arg_count-1) ? ", " : "");
+        ptr += written;
+        free(temps[i]);
+    }
+
+    free(temps);
+    return result;
+}
+
+// notice how we mimic how the parser parses stuff here in codegen
+static char* gen_expr(CodegenContext* ctx, ASTNode* node) {
+    /* Generate an expression.
+     * Everything here returns something (a temp variable)
+     *
+     */
+    char* temp = new_temp(ctx);
+    
+    switch (node->type) {
+        case AST_NUMBER:
+            emit(ctx, "  %s = add i32 0, %d\n", temp, node->number);
+            return temp;
+            
+        case AST_BINARY_OP: {
+            char* left = gen_expr(ctx, node->binary_op.left);
+            char* right = gen_expr(ctx, node->binary_op.right);
+            const char* op = NULL;
+            
+            switch (node->binary_op.op) {
+                case OP_ADD: op = "add"; break;
+                case OP_SUB: op = "sub"; break;
+                case OP_MUL: op = "mul"; break;
+                case OP_DIV: op = "sdiv"; break;
             }
-            fprintf(stderr, "Unknown function: %s\n", node->function_call.name);
-            return NULL;
-        }
-        case AST_VARIABLE_DEF: {
-            LLVMValueRef value = codegen(node->variable_def.body, module, builder);
-            if (!value) {
+            
+            emit(ctx, "  %s = %s i32 %s, %s\n", temp, op, left, right);
+            free(left);
+            free(right);
+            return temp;
+        }            
+        case AST_VARIABLE: {
+            const char* var_temp = find_symbol(ctx, node->variable.name);
+            if (!var_temp) {
+                fprintf(stderr, "Error: Undefined variable '%s'\n", node->variable.name);
+                free(temp);
                 return NULL;
             }
-
-            symbol_table = realloc(symbol_table, (num_vars + 1)*sizeof(Symbol));
-            symbol_table[num_vars] = (Symbol){
-                .name = strdup(node->variable_def.name),
-                .value = value
-            };
-
-            num_vars += 1;
-
-            return value;
+            emit(ctx, "  %s = add i32 %s, 0  ; Load variable\n", temp, var_temp);
+            return temp;
         }
-        case AST_VARIABLE: {
-            for (size_t i = 0; i < num_vars; i++) {
-                if (strcmp(symbol_table[i].name, node->variable.name) == 0) {
-                    return symbol_table[i].value;
-                }
+
+        case AST_FUNCTION_CALL: {
+            char* temp = new_temp(ctx);
+
+            size_t arg_count = node->function_call.arg_count;
+
+            char* call_args = get_call_args(ctx, node->function_call.args, arg_count);
+
+            if (arg_count > 0) {
+                emit(ctx, "  %s = call i32 @%s(%s)\n", temp, node->function_call.name, call_args);
             }
-            fprintf(stderr, "Unknown variable: %s\n", node->variable.name);
-            return NULL;
+            else {
+                emit(ctx, "  %s = call i32 @%s()\n", temp, node->function_call.name);
+            }
+            
+            free(call_args);
+
+            return temp;
         }
         default:
+            fprintf(stderr, "Error: Failed to parse node! \n");
+            free(temp);
             return NULL;
     }
 }
 
+void codegen(CodegenContext* ctx, ASTNode* node) {
+    switch (node->type) {
+        case AST_FUNCTION_DEF: {
+            emit(ctx, "\ndefine i32 @%s() {\n", node->function_def.name);
+            emit(ctx, "entry:\n");
+            
+            char* result = gen_expr(ctx, node->function_def.body);
+            if (result) {
+                emit(ctx, "  ret i32 %s\n", result);
+                free(result);
+            }
+            
+            emit(ctx, "}\n");
+            break;
+        }
+        case AST_VARIABLE_DEF: {
+            // notice that we perform NO operation here
+            char* value_temp = gen_expr(ctx, node->variable_def.body);
+            add_symbol(ctx, node->variable_def.name, value_temp);
+            emit(ctx, "  ; Variable assignment: %s = %s\n", 
+                node->variable_def.name, value_temp);
+            free(value_temp);
+            break;
+        }
+            
+        default: {
+            char* temp = gen_expr(ctx, node);
+            free(temp);
+            break;
+        }
+    }
+}
 
+void codegen_init(CodegenContext* ctx, FILE* output) {
+    ctx->output = output;
+    ctx->temp_counter = 0;
+    ctx->symbols = NULL;
+    ctx->symbols_size = 0;
+    emit(ctx, "; ModuleID = 'memelang'\n");
+    emit(ctx, "declare i32 @print(i32)\n");
+    emit(ctx, "\n");
+}
+
+void codegen_cleanup(CodegenContext* ctx) {
+    for (size_t i = 0; i < ctx->symbols_size; i++) {
+        free(ctx->symbols[i].name);
+        free(ctx->symbols[i].temp);
+    }
+    free(ctx->symbols);
+}

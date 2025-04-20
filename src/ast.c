@@ -17,23 +17,34 @@ ASTNode *create_ast_variable(char *name) {
     return node;
 }
 
-ASTNode *create_ast_function_def(char *name, ASTNode *body) {
+ASTNode *create_ast_function_def(char *name, ASTNode *body, char **args, unsigned int arg_count) {
     ASTNode *node = malloc(sizeof(ASTNode));
     node->type = AST_FUNCTION_DEF;
     node->function_def.name = strdup(name);
     node->function_def.body = body;
+
+    // XXX shallow copy
+    node->function_def.args = malloc(sizeof(ASTNode) * arg_count);
+    memcpy(node->function_def.args, args, sizeof(ASTNode) * arg_count);
+    node->function_def.arg_count = arg_count;
     return node;
 }
 
-ASTNode *create_ast_function_call(char *name) {
+ASTNode *create_ast_function_call(char *name, ASTNode **args, unsigned int arg_count) {
     ASTNode *node = malloc(sizeof(ASTNode));
     node->type = AST_FUNCTION_CALL;
     node->function_call.name = strdup(name);
+
+    // shallow copy
+    node->function_call.args = malloc(sizeof(ASTNode) * arg_count);
+    memcpy(node->function_call.args, args, sizeof(ASTNode) * arg_count);
+    node->function_call.arg_count = arg_count;
+
     return node;
 }
 
 
-ASTNode *create_ast_number(double value) {
+ASTNode *create_ast_number(int value) {
     ASTNode *node = malloc(sizeof(ASTNode));
     node->type = AST_NUMBER;
     node->number = value;
