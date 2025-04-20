@@ -37,7 +37,10 @@ void yyerror(YYLTYPE *loc, void *scanner, const char *s);
         char **args;
         unsigned int count;
     } decl_args;
-
+    struct {
+        ASTNode **statements;
+        unsigned int count;
+    } block;
 }
 
 %token <num> NUMBER
@@ -52,24 +55,46 @@ void yyerror(YYLTYPE *loc, void *scanner, const char *s);
 %type <node> program
 %type <node> function_def
 %type <node> variable_def
+%type <node> statement
 %type <str> identifier
 %type <call_args> call_args
 %type <decl_args> decl_args
+%type <block> statement_block
 
 %%
 
-program: function_def  { root = $1; }
-       | variable_def SEMICOLON {root = $1; }
-       | expression SEMICOLON{ root = $1; }
+program:
+       | statement_block { root = create_ast_block($1.statements, $1.count); free($1.statements);}
        ;
+
+statement_block: /* nothing */ { $$.count = 0; $$.statements = NULL; }
+               /* Base case n=1 as well because we have to malloc */
+               | statement SEMICOLON  {
+                    $$.count = 1;
+                    $$.statements = malloc(sizeof(ASTNode*));
+                    $$.statements[0] = $1;
+                }
+               | statement_block statement SEMICOLON {
+                    $1.count++;
+                    $1.statements = realloc($1.statements, sizeof(ASTNode*) * $1.count);
+                    $1.statements[$1.count-1] = $2;
+                    $$ = $1;
+                }
+               ;
+
+statement:
+         | variable_def { $$ = $1; }
+         | expression {$$ = $1; }
+         | function_def {$$ = $1; }
+         ;
 
 function_def:
     FUNCTION identifier LPAREN decl_args RPAREN ARROW expression { $$ = create_ast_function_def($2, $7, $4.args, $4.count); free($2); free($4.args); }
             ;
 
 call_args: /* nothing! */ { $$.count = 0; $$.args = NULL; }
-         | expression /* last arg*/ {$$.count = 1; $$.args = malloc(sizeof(ASTNode*)); $$.args[0] = $1;}
-         | call_args COMMA expression {$1.count++; $1.args =  realloc($1.args, sizeof(ASTNode*) * $1.count); $1.args[$1.count-1] = $3; $$ = $1; }
+         | expression /* last arg*/ { $$.count = 1; $$.args = malloc(sizeof(ASTNode*)); $$.args[0] = $1; }
+         | call_args COMMA expression { $1.count++; $1.args =  realloc($1.args, sizeof(ASTNode*) * $1.count); $1.args[$1.count-1] = $3; $$ = $1; }
 
 decl_args: { $$.count = 0; $$.args = NULL; }
          | IDENTIFIER     { $$.count = 1; $$.args = malloc(sizeof(char*)); $$.args[0] = strdup($1); }

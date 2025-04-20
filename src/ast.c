@@ -2,6 +2,18 @@
 #include <stdlib.h>
 #include <string.h>
 
+ASTNode *create_ast_block(ASTNode **block, unsigned int stmt_count) {
+    ASTNode *node = malloc(sizeof(ASTNode));
+    node->type = AST_BLOCK;
+
+    // shallow copy again again
+    node->block.statements = malloc(sizeof(ASTNode) * stmt_count);
+    memcpy(node->block.statements, block, sizeof(ASTNode) * stmt_count);
+    node->block.stmt_count = stmt_count;
+
+    return node;
+}
+
 ASTNode *create_ast_variable_def(char *name, ASTNode *body) {
     ASTNode *node = malloc(sizeof(ASTNode));
     node->type = AST_VARIABLE_DEF;
@@ -70,9 +82,23 @@ void free_ast(ASTNode *node) {
             case AST_FUNCTION_DEF:
                 free(node->function_def.name);
                 free_ast(node->function_def.body);
+                free(node->function_def.args);
                 break;
             case AST_FUNCTION_CALL:
                 free(node->function_call.name);
+                free(node->function_call.args);
+                break;
+            case AST_VARIABLE_DEF:
+                free(node->variable_def.name);
+                free_ast(node->variable_def.body);
+            case AST_VARIABLE:
+                free(node->variable.name);
+                break;
+            case AST_BLOCK:
+                for (size_t i = 0; i < node->block.stmt_count; i++) {
+                    free_ast(node->block.statements[i]);
+                }
+                free(node->block.statements);
                 break;
             default:
                 break;

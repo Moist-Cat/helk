@@ -9,6 +9,7 @@ typedef enum {
 } ASTBinaryOp;
 
 typedef enum {
+    AST_BLOCK,
     AST_NUMBER,
     AST_BINARY_OP,
     AST_FUNCTION_DEF,
@@ -46,9 +47,14 @@ typedef struct ASTNode {
             char *name;
             struct ASTNode *body;
         } variable_def;
+        struct {
+            struct ASTNode **statements;
+            unsigned int stmt_count;
+        } block;
     };
 } ASTNode;
 
+ASTNode *create_ast_block(ASTNode **block, unsigned int stmt_count);
 ASTNode *create_ast_number(int value);
 ASTNode *create_ast_binary_op(ASTNode *left, ASTNode *right, ASTBinaryOp op);
 ASTNode *create_ast_function_def(char *name, ASTNode *body, char **args, unsigned int arg_count);

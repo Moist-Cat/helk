@@ -129,16 +129,28 @@ static char* gen_expr(CodegenContext* ctx, ASTNode* node) {
 
             return temp;
         }
+        case AST_BLOCK: {
+            // no idea what's the return value of a block of expressions
+            // XXX this obviously explodes if you declare a function inside a function
+            // don't do that
+            codegen_block(ctx, node);
+            
+            // Return zero by default
+            char* temp = new_temp(ctx);
+            emit(ctx, "  %s = xor i32 0, 0\n", temp, temp, temp);
+            return temp;
+        }
         default:
-            fprintf(stderr, "Error: Failed to parse node! \n");
+            fprintf(stderr, "Error: Failed to parse %d because it is not an expression! \n", node->type);
             free(temp);
             return NULL;
     }
 }
 
-void codegen(CodegenContext* ctx, ASTNode* node) {
+void codegen_stmt(CodegenContext* ctx, ASTNode* node) {
     switch (node->type) {
         case AST_FUNCTION_DEF: {
+            // should ONLY contain functions after sem_anal
             emit(ctx, "\ndefine i32 @%s() {\n", node->function_def.name);
             emit(ctx, "entry:\n");
             
@@ -146,6 +158,11 @@ void codegen(CodegenContext* ctx, ASTNode* node) {
             if (result) {
                 emit(ctx, "  ret i32 %s\n", result);
                 free(result);
+            }
+            else {
+                // panik
+                fprintf(stderr, "ERROR - Function `%s` has no return value!\n", node->function_def.name);
+                exit(1);
             }
             
             emit(ctx, "}\n");
@@ -164,6 +181,27 @@ void codegen(CodegenContext* ctx, ASTNode* node) {
         default: {
             char* temp = gen_expr(ctx, node);
             free(temp);
+            break;
+        }
+    }
+}
+
+void codegen_block(CodegenContext* ctx, ASTNode* node) {
+    // weeeeeeeeeee
+    for (size_t i = 0; i < node->block.stmt_count; i++) {
+        codegen_stmt(ctx, node->block.statements[i]);
+    }
+}
+
+void codegen(CodegenContext* ctx, ASTNode* node) {
+    // only statement blocks for now
+    fprintf(stderr, "INFO - Generating LLVM IR code\n");
+    switch (node->type) {
+        case AST_BLOCK: {
+            codegen_block(ctx, node);
+            break;
+        }
+        default: {
             break;
         }
     }

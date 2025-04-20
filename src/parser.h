@@ -89,9 +89,12 @@ union YYSTYPE
         char **args;
         unsigned int count;
     } decl_args;
+    struct {
+        ASTNode **statements;
+        unsigned int count;
+    } block;
 
-
-#line 95 "src/parser.h"
+#line 98 "src/parser.h"
 
 };
 typedef union YYSTYPE YYSTYPE;
@@ -121,6 +124,6 @@ int yyparse (void *scanner);
 
     int parse(char *text, ASTNode **node);
 
-#line 125 "src/parser.h"
+#line 128 "src/parser.h"
 
 #endif /* !YY_YY_SRC_PARSER_H_INCLUDED  */

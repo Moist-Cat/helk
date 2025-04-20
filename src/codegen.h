@@ -18,7 +18,9 @@ typedef struct {
 
 void codegen_init(CodegenContext* ctx, FILE* output);
 void codegen_cleanup(CodegenContext* ctx);
+
 static char* gen_expr(CodegenContext* ctx, ASTNode* node);
+void codegen_block(CodegenContext* ctx, ASTNode* node);
 void codegen(CodegenContext* ctx, ASTNode* node);
 
 #endif
