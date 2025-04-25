@@ -23,15 +23,12 @@ LEX=flex
 YACC=bison
 YFLAGS?=-dv
 
-LLVM_CC_FLAGS=`llvm-config --cflags`
-LLVM_LINK_FLAGS=`llvm-config --libs --cflags --ldflags core analysis executionengine mcjit interpreter native --system-libs`
-
 # default to build a binary
 
 all: build/libcomp.a build/comp ${OBJECTS}
 
 run: build runtime
-	./build/comp "print(5 + 3);" > out.ll
+	./build/comp tests/make.hk > out.ll
 	llc -filetype=obj out.ll -o out.o
 	$(CC) out.o src/builtins.o -o out
 
@@ -50,10 +47,10 @@ build/libcomp.a: ${LIB_OBJECTS} build_dir
 src/comp.c: ${LEX_OBJECTS}
 
 src/comp.o: src/comp.c build/libcomp.a
-	${CC} ${LLVM_CC_FLAGS} ${CFLAGS} -c -o $@ $^
+	${CC} ${CFLAGS} -c -o $@ $^
 
 build/comp: ${OBJECTS}
-	$(CXX) $(LLVM_LINK_FLAGS) $(CXXFLAGS) -rdynamic -Isrc -o $@ src/comp.o build/libcomp.a
+	$(CC) $(CFLAGS) -rdynamic -Isrc -o $@ src/comp.o build/libcomp.a
 	chmod 700 $@
 
 build: build/comp

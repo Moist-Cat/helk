@@ -49,7 +49,6 @@ void sa_block(ASTNode *node) {
     }
 
     // Add main function (always)
-    fprintf(stderr, "\n\nnoger %d\n\n", main_count);
     ASTNode* main_func = create_main_function(main_body, main_count);
     new_statements[func_count] = main_func;
 
@@ -65,32 +64,42 @@ void sa_block(ASTNode *node) {
     //free(main_body);
 }
 
-void semantic_analysis(ASTNode *node) {
+void _semantic_analysis(ASTNode *node) {
     if (!node) return;
 
     switch (node->type) {
-        case AST_BLOCK:
+        case AST_BLOCK: {
             fprintf(stderr, "INFO - Performing sem_anal into code block\n");
-            sa_block(node);
             // Recurse into new structure
             for (size_t i = 0; i < node->block.stmt_count; i++) {
                 semantic_analysis(node->block.statements[i]);
             }
             break;
-            
-        // XXX stack overflow since the main function has blocks
-        //case AST_FUNCTION_DEF:
-        //    fprintf(stderr, "INFO - Performing sem_anal into %s\n", node->function_def.name);
-        //    semantic_analysis(node->function_def.body);
-        //    break;
-            
-        case AST_BINARY_OP:
+        }
+        case AST_FUNCTION_DEF: {
+            fprintf(stderr, "INFO - Performing sem_anal into %s\n", node->function_def.name);
+            semantic_analysis(node->function_def.body);
+            break;
+        }
+        case AST_BINARY_OP: {
             semantic_analysis(node->binary_op.left);
             semantic_analysis(node->binary_op.right);
             break;
-            
-        // Add other cases as needed
-        default:
+        }
+        default: {
             break;
+        }
+    }
+}
+
+void semantic_analysis(ASTNode *node) {
+    switch (node->type) {
+        case AST_BLOCK: {
+            sa_block(node);
+            _semantic_analysis(node);
+        }
+        default: {
+            break;
+        }
     }
 }

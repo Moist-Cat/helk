@@ -1,1 +1,2 @@
-function master() => let a = 10 + 5 * 2
+function master(n) => n + 5 * 2;
+print(master(10));

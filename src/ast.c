@@ -57,7 +57,7 @@ ASTNode *create_ast_function_call(char *name, ASTNode **args, unsigned int arg_c
 }
 
 
-ASTNode *create_ast_number(int value) {
+ASTNode *create_ast_number(double value) {
     ASTNode *node = malloc(sizeof(ASTNode));
     node->type = AST_NUMBER;
     node->number = value;
@@ -93,7 +93,9 @@ void free_ast(ASTNode *node) {
                 free(node->variable_def.name);
                 free_ast(node->variable_def.body);
             case AST_VARIABLE:
-                free(node->variable.name);
+                // XXX memory leak, we can't free the variable
+                // 
+                //free(node->variable.name);
                 break;
             case AST_BLOCK:
                 for (size_t i = 0; i < node->block.stmt_count; i++) {

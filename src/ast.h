@@ -2,11 +2,15 @@
 #define AST_H
 
 typedef enum {
-    OP_ADD = 100,
+    OP_ADD,
     OP_SUB,
     OP_MUL,
     OP_DIV
 } ASTBinaryOp;
+
+typedef enum {
+    FLOAT
+} ValueType;
 
 typedef enum {
     AST_BLOCK,
@@ -20,8 +24,9 @@ typedef enum {
 
 typedef struct ASTNode {
     ASTNodeType type;
+    ValueType val_type;
     union {
-        int number;
+        double number;
         struct {
             struct ASTNode *left;
             struct ASTNode *right;
@@ -55,7 +60,7 @@ typedef struct ASTNode {
 } ASTNode;
 
 ASTNode *create_ast_block(ASTNode **block, unsigned int stmt_count);
-ASTNode *create_ast_number(int value);
+ASTNode *create_ast_number(double value);
 ASTNode *create_ast_binary_op(ASTNode *left, ASTNode *right, ASTBinaryOp op);
 ASTNode *create_ast_function_def(char *name, ASTNode *body, char **args, unsigned int arg_count);
 ASTNode *create_ast_function_call(char *name, ASTNode **args, unsigned int arg_count);

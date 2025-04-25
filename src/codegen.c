@@ -53,7 +53,7 @@ static char* get_call_args(CodegenContext* ctx, ASTNode** args, unsigned int arg
     // Generate code for all arguments first
     for (size_t i = 0; i < arg_count; i++) {
         temps[i] = gen_expr(ctx, args[i]);
-        total_len += strlen(temps[i]) + 6; // XXX "i32 , " per argument
+        total_len += strlen(temps[i]) + 9; // XXX "double , " per argument
     }
 
     // Build arguments string
@@ -61,7 +61,7 @@ static char* get_call_args(CodegenContext* ctx, ASTNode** args, unsigned int arg
     char* ptr = result;
 
     for (size_t i = 0; i < arg_count; i++) {
-        int written = sprintf(ptr, "i32 %s%s", temps[i], (i < arg_count-1) ? ", " : "");
+        int written = sprintf(ptr, "double %s%s", temps[i], (i < arg_count-1) ? ", " : "");
         ptr += written;
         free(temps[i]);
     }
@@ -79,7 +79,7 @@ static char* get_def_args(char** args, unsigned int arg_count) {
     // Generate code for all arguments first
     for (size_t i = 0; i < arg_count; i++) {
         temps[i] = args[i];
-        total_len += strlen(temps[i]) + 6; // XXX "i32 , " per argument
+        total_len += strlen(temps[i]) + 6; // XXX "double , " per argument
     }
 
     // Build arguments string
@@ -87,7 +87,7 @@ static char* get_def_args(char** args, unsigned int arg_count) {
     char* ptr = result;
 
     for (size_t i = 0; i < arg_count; i++) {
-        int written = sprintf(ptr, "i32 %s%s%s", "%", temps[i], (i < arg_count-1) ? ", " : "");
+        int written = sprintf(ptr, "double %s%s%s", "%", temps[i], (i < arg_count-1) ? ", " : "");
         ptr += written;
     }
 
@@ -105,7 +105,7 @@ static char* gen_expr(CodegenContext* ctx, ASTNode* node) {
     
     switch (node->type) {
         case AST_NUMBER:
-            emit(ctx, "  %s = add i32 0, %d\n", temp, node->number);
+            emit(ctx, "  %s = fadd double 0.000000e+00, %f\n", temp, node->number);
             return temp;
             
         case AST_BINARY_OP: {
@@ -114,13 +114,13 @@ static char* gen_expr(CodegenContext* ctx, ASTNode* node) {
             const char* op = NULL;
             
             switch (node->binary_op.op) {
-                case OP_ADD: op = "add"; break;
-                case OP_SUB: op = "sub"; break;
-                case OP_MUL: op = "mul"; break;
-                case OP_DIV: op = "sdiv"; break;
+                case OP_ADD: op = "fadd"; break;
+                case OP_SUB: op = "fsub"; break;
+                case OP_MUL: op = "fmul"; break;
+                case OP_DIV: op = "fdiv"; break;
             }
             
-            emit(ctx, "  %s = %s i32 %s, %s\n", temp, op, left, right);
+            emit(ctx, "  %s = %s double %s, %s\n", temp, op, left, right);
             free(left);
             free(right);
             return temp;
@@ -130,10 +130,10 @@ static char* gen_expr(CodegenContext* ctx, ASTNode* node) {
             if (!var_temp) {
                 fprintf(stderr, "WARNING: Undefined variable '%s'\n", node->variable.name);
 
-                emit(ctx, "  %s = add i32 %s%s, 0  ; Load variable\n", temp, "%", node->variable.name);
+                emit(ctx, "  %s = fadd double %s%s, 0.000000e+00  ; Load variable\n", temp, "%", node->variable.name);
                 return temp;
             }
-            emit(ctx, "  %s = add i32 %s, 0  ; Load variable\n", temp, var_temp);
+            emit(ctx, "  %s = fadd double %s, 0.000000e+00 ; Load variable\n", temp, var_temp);
             return temp;
         }
 
@@ -145,10 +145,10 @@ static char* gen_expr(CodegenContext* ctx, ASTNode* node) {
             char* call_args = get_call_args(ctx, node->function_call.args, arg_count);
 
             if (arg_count > 0) {
-                emit(ctx, "  %s = call i32 @%s(%s)\n", temp, node->function_call.name, call_args);
+                emit(ctx, "  %s = call double @%s(%s)\n", temp, node->function_call.name, call_args);
             }
             else {
-                emit(ctx, "  %s = call i32 @%s()\n", temp, node->function_call.name);
+                emit(ctx, "  %s = call double @%s()\n", temp, node->function_call.name);
             }
             
             free(call_args);
@@ -163,7 +163,7 @@ static char* gen_expr(CodegenContext* ctx, ASTNode* node) {
             
             // Return zero by default
             char* temp = new_temp(ctx);
-            emit(ctx, "  %s = xor i32 0, 0\n", temp, temp, temp);
+            emit(ctx, "  %s = fadd double 0.000000e+00, 0.000000e+00\n", temp, temp, temp);
             return temp;
         }
         default:
@@ -183,16 +183,16 @@ void codegen_stmt(CodegenContext* ctx, ASTNode* node) {
             char* def_args = get_def_args(node->function_def.args, arg_count);
 
             if (arg_count > 0) {
-                emit(ctx, "\ndefine i32 @%s(%s) {\n", node->function_def.name, def_args);
+                emit(ctx, "\ndefine double @%s(%s) {\n", node->function_def.name, def_args);
             }
             else {
-                emit(ctx, "\ndefine i32 @%s() {\n", node->function_def.name);
+                emit(ctx, "\ndefine double @%s() {\n", node->function_def.name);
             }
             emit(ctx, "entry:\n");
             
             char* result = gen_expr(ctx, node->function_def.body);
             if (result) {
-                emit(ctx, "  ret i32 %s\n", result);
+                emit(ctx, "  ret double %s\n", result);
                 free(result);
             }
             else {
@@ -252,7 +252,7 @@ void codegen_init(CodegenContext* ctx, FILE* output) {
     ctx->symbols = NULL;
     ctx->symbols_size = 0;
     emit(ctx, "; ModuleID = 'memelang'\n");
-    emit(ctx, "declare i32 @print(i32)\n");
+    emit(ctx, "declare double @print(double)\n");
     emit(ctx, "\n");
 }
 

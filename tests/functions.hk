@@ -1,0 +1,7 @@
+function sum(a, b) => a + b;
+function double(n) => sum(n, n);
+
+print(sum(2, 3));
+print(sum(2, 3));
+print(double(4));
+print(double(4));
