@@ -41,6 +41,15 @@ void yyerror(YYLTYPE *loc, void *scanner, const char *s);
         ASTNode **statements;
         unsigned int count;
     } block;
+    struct {
+        char **names;
+        ASTNode **values;
+        unsigned int count;
+    } var_defs;
+    struct {
+        char *name;
+        ASTNode *value;
+    } var_def;
 }
 
 %token <num> NUMBER
@@ -48,7 +57,7 @@ void yyerror(YYLTYPE *loc, void *scanner, const char *s);
 %token PLUS MINUS MULTIPLY DIVIDE
 %token LPAREN RPAREN
 %token FUNCTION COMMA ARROW
-%token LET EQUALS
+%token LET EQUALS IN
 %token SEMICOLON
 
 %type <node> expression
@@ -60,6 +69,8 @@ void yyerror(YYLTYPE *loc, void *scanner, const char *s);
 %type <call_args> call_args
 %type <decl_args> decl_args
 %type <block> statement_block
+%type <var_defs> variable_def_list
+%type <var_def> variable_def_item
 
 %%
 
@@ -86,6 +97,30 @@ statement: variable_def { $$ = $1; }
          | function_def {$$ = $1; }
          ;
 
+variable_def_item:
+    identifier EQUALS expression {
+        $$.name = $1;
+        $$.value = $3;
+    }
+    ;
+
+variable_def_list:
+    variable_def_item {
+        $$.count = 1;
+        $$.names = malloc(sizeof(char*));
+        $$.names[0] = $1.name;
+        $$.values = malloc(sizeof(ASTNode*));
+        $$.values[0] = $1.value;
+    }
+    | variable_def_list COMMA variable_def_item {
+        $$.count = $1.count + 1;
+        $$.names = realloc($1.names, sizeof(char*) * $$.count);
+        $$.values = realloc($1.values, sizeof(ASTNode*) * $$.count);
+        $$.names[$$.count-1] = $3.name;
+        $$.values[$$.count-1] = $3.value;
+    }
+    ;
+
 function_def:
     FUNCTION identifier LPAREN decl_args RPAREN ARROW expression { $$ = create_ast_function_def($2, $7, $4.args, $4.count); free($2); free($4.args); }
             ;
@@ -110,6 +145,13 @@ expression: NUMBER              { $$ = create_ast_number($1); }
           | expression MINUS expression  { $$ = create_ast_binary_op($1, $3, OP_SUB); }
           | expression MULTIPLY expression { $$ = create_ast_binary_op($1, $3, OP_MUL); }
           | expression DIVIDE expression { $$ = create_ast_binary_op($1, $3, OP_DIV); }
+          |
+    LET variable_def_list IN expression {
+        $$ = create_ast_let_in($2.names, $2.values, $2.count, $4);
+        free($2.names);  // Free array containers only
+        free($2.values);
+    }
+    ;
           | identifier LPAREN call_args RPAREN    { $$ = create_ast_function_call($1, $3.args, $3.count); free($1); free($3.args);}
           | identifier {$$ = create_ast_variable($1); }
           | LPAREN expression RPAREN     { $$ = $2; }

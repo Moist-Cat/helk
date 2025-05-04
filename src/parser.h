@@ -67,7 +67,8 @@ extern int yydebug;
     ARROW = 268,                   /* ARROW  */
     LET = 269,                     /* LET  */
     EQUALS = 270,                  /* EQUALS  */
-    SEMICOLON = 271                /* SEMICOLON  */
+    IN = 271,                      /* IN  */
+    SEMICOLON = 272                /* SEMICOLON  */
   };
   typedef enum yytokentype yytoken_kind_t;
 #endif
@@ -93,8 +94,17 @@ union YYSTYPE
         ASTNode **statements;
         unsigned int count;
     } block;
+    struct {
+        char **names;
+        ASTNode **values;
+        unsigned int count;
+    } var_defs;
+    struct {
+        char *name;
+        ASTNode *value;
+    } var_def;
 
-#line 98 "src/parser.h"
+#line 108 "src/parser.h"
 
 };
 typedef union YYSTYPE YYSTYPE;
@@ -124,6 +134,6 @@ int yyparse (void *scanner);
 
     int parse(char *text, ASTNode **node);
 
-#line 128 "src/parser.h"
+#line 138 "src/parser.h"
 
 #endif /* !YY_YY_SRC_PARSER_H_INCLUDED  */

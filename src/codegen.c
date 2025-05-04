@@ -136,6 +136,19 @@ static char* gen_expr(CodegenContext* ctx, ASTNode* node) {
             emit(ctx, "  %s = fadd double %s, 0.000000e+00 ; Load variable\n", temp, var_temp);
             return temp;
         }
+        case AST_VARIABLE_DEF: {
+            // notice that we perform NO operation here
+            // since storing the value is handled by default
+            // (we have to store whatever is inside in a temp anyway)
+            // So we simply rename the variable.
+            char* value_temp = gen_expr(ctx, node->variable_def.body);
+            add_symbol(ctx, node->variable_def.name, value_temp);
+            emit(ctx, "  ; Variable assignment: %s = %s\n", 
+                node->variable_def.name, value_temp);
+            //free(value_temp);
+            free(temp); // not needed
+            return value_temp;
+        }
 
         case AST_FUNCTION_CALL: {
             char* temp = new_temp(ctx);
@@ -156,15 +169,11 @@ static char* gen_expr(CodegenContext* ctx, ASTNode* node) {
             return temp;
         }
         case AST_BLOCK: {
-            // no idea what's the return value of a block of expressions
-            // XXX this obviously explodes if you declare a function inside a function
-            // don't do that
-            codegen_block(ctx, node);
-            
             // Return zero by default
-            char* temp = new_temp(ctx);
-            emit(ctx, "  %s = fadd double 0.000000e+00, 0.000000e+00\n", temp, temp, temp);
-            return temp;
+            return codegen_expr_block(ctx, node);
+            //emit(ctx, "  %s = fadd double %f, 0.000000e+00\n", temp, ret_value);
+            //free(ret_value);
+            //return temp;
         }
         default:
             fprintf(stderr, "Error: Failed to parse %d because it is not an expression! \n", node->type);
@@ -174,6 +183,7 @@ static char* gen_expr(CodegenContext* ctx, ASTNode* node) {
 }
 
 void codegen_stmt(CodegenContext* ctx, ASTNode* node) {
+    /* purely functional lang */
     switch (node->type) {
         case AST_FUNCTION_DEF: {
             // should ONLY contain functions after sem_anal
@@ -204,19 +214,6 @@ void codegen_stmt(CodegenContext* ctx, ASTNode* node) {
             emit(ctx, "}\n");
             break;
         }
-        case AST_VARIABLE_DEF: {
-            // notice that we perform NO operation here
-            // since storing the value is handled by default
-            // (we have to store whatever is inside in a temp anyway)
-            // So we simply rename the variable.
-            char* value_temp = gen_expr(ctx, node->variable_def.body);
-            add_symbol(ctx, node->variable_def.name, value_temp);
-            emit(ctx, "  ; Variable assignment: %s = %s\n", 
-                node->variable_def.name, value_temp);
-            free(value_temp);
-            break;
-        }
-            
         default: {
             char* temp = gen_expr(ctx, node);
             free(temp);
@@ -230,6 +227,16 @@ void codegen_block(CodegenContext* ctx, ASTNode* node) {
     for (size_t i = 0; i < node->block.stmt_count; i++) {
         codegen_stmt(ctx, node->block.statements[i]);
     }
+}
+
+static char* codegen_expr_block(CodegenContext* ctx, ASTNode* node) {
+    /* We assume that whatever is inside this block is an expression */
+    char* temp = NULL;
+    for (size_t i = 0; i < node->block.stmt_count; i++) {
+        // weeeeeeeeeeeeee memory leeeeeeeaks
+        temp = gen_expr(ctx, node->block.statements[i]);
+    }
+    return temp;
 }
 
 void codegen(CodegenContext* ctx, ASTNode* node) {

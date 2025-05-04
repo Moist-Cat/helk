@@ -32,6 +32,10 @@ run: build runtime
 	llc -filetype=obj out.ll -o out.o
 	$(CC) out.o src/builtins.o -o out
 
+execute: hulk compile
+	$(CC) hulk/script.ll src/builtins.o -o hulk/script
+	./hulk/script
+
 runtime: $(HELPERS_OBJ)
 
 # binaries
@@ -54,9 +58,16 @@ build/comp: ${OBJECTS}
 	chmod 700 $@
 
 build: build/comp
+compile: build
+	./hulk/comp script.hulk > ./hulk/script.ll
 
 build_dir:
 	mkdir -p build
+
+hulk:
+	mkdir -p hulk
+	cd hulk && \
+	ln -s ../build/comp comp
 
 
 # flex & bison
@@ -78,4 +89,4 @@ src/codegen.o: src/codegen.c
 # clean
 
 clean: 
-	rm -rf ${OBJECTS} ${LEX_OBJECTS} ${YACC_OBJECTS} build/libcomp.a build/comp
+	rm -rf ${OBJECTS} ${LEX_OBJECTS} ${YACC_OBJECTS} build/ hulk/

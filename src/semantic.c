@@ -4,6 +4,114 @@
 #include <stdio.h>
 #include <string.h>
 
+typedef struct {
+    ASTNode** stmts;
+    unsigned int stmt_count;
+    ASTNode* expr;
+} FlattenResult;
+
+static void append_stmts(FlattenResult* dest, ASTNode** src, unsigned int count) {
+    dest->stmts = realloc(dest->stmts, (dest->stmt_count + count) * sizeof(ASTNode*));
+    memcpy(dest->stmts + dest->stmt_count, src, count * sizeof(ASTNode*));
+    dest->stmt_count += count;
+}
+
+static FlattenResult flatten(ASTNode* node) {
+    // XXX we have the problem that we must know what node must be substituted
+    FlattenResult res = {0};
+
+    switch (node->type) {
+        case AST_LET_IN: {
+            // Process variables
+            for (size_t i = 0; i < node->let_in.var_count; i++) {
+                FlattenResult val = flatten(node->let_in.var_values[i]);
+                append_stmts(&res, val.stmts, val.stmt_count);
+
+                // Create variable definition
+                ASTNode* def = create_ast_variable_def(
+                    node->let_in.var_names[i],
+                    val.expr
+                );
+                res.stmts = realloc(res.stmts, (res.stmt_count + 1) * sizeof(ASTNode*));
+                res.stmts[res.stmt_count++] = def;
+            }
+
+            // Process body
+            FlattenResult body = flatten(node->let_in.body);
+            append_stmts(&res, body.stmts, body.stmt_count);
+            res.expr = body.expr;
+            break;
+        }
+
+        case AST_BINARY_OP: {
+            FlattenResult left = flatten(node->binary_op.left);
+            FlattenResult right = flatten(node->binary_op.right);
+            append_stmts(&res, left.stmts, left.stmt_count);
+            append_stmts(&res, right.stmts, right.stmt_count);
+            res.expr = create_ast_binary_op(left.expr, right.expr, node->binary_op.op);
+            break;
+        }
+        case AST_FUNCTION_DEF: {
+            flatten(node->function_def.body);
+        }
+
+        default:
+            res.expr = node;
+            break;
+    }
+
+    return res;
+}
+
+ASTNode* transform_ast(ASTNode* node) {
+    fprintf(stderr, "Node type=%d\n", node->type);
+    if (!node) return NULL;
+
+    // First transform children recursively
+    switch (node->type) {
+        case AST_BLOCK: {
+            fprintf(stderr, "Transforming AST_BLOCK\n");
+            for (size_t i = 0; i < node->block.stmt_count; i++) {
+                node->block.statements[i] = transform_ast(node->block.statements[i]);
+            }                      
+            break;
+        }
+        case AST_FUNCTION_DEF: {
+            fprintf(stderr, "Transforming AST_FUNCTION_DEF\n");
+            node->function_def.body = transform_ast(node->function_def.body);
+            break;
+        }
+        case AST_LET_IN: {
+            fprintf(stderr, "Transforming AST_LET_IN\n");
+            FlattenResult washboard = flatten(node);
+
+            ASTNode* new_block = malloc(sizeof(ASTNode));
+            new_block->type = AST_BLOCK;
+            new_block->block.statements = washboard.stmts;
+            new_block->block.stmt_count = washboard.stmt_count;
+
+            // the result of the evaluation of an expression block is the last expression evaluated
+            new_block->block.statements = realloc(new_block->block.statements, (new_block->block.stmt_count + 1) * sizeof(ASTNode*));
+            new_block->block.statements[new_block->block.stmt_count++] = washboard.expr;
+
+            // free the *struct* holding the data
+            // ... memory leak?
+            free(node);
+
+            node = new_block;
+            break;
+        }
+
+        default:
+            break;
+
+        // XXX Handle other node types similarly
+    }
+
+    // Then apply transformation to current node
+    return node;
+}
+
 static ASTNode* create_main_function(ASTNode** statements, unsigned int count) {
     ASTNode* main_block = malloc(sizeof(ASTNode));
     main_block->type = AST_BLOCK;
@@ -65,6 +173,8 @@ void sa_block(ASTNode *node) {
 }
 
 void _semantic_analysis(ASTNode *node) {
+    /* Anything read-only */
+    // at this point, let-ins do not exist
     if (!node) return;
 
     switch (node->type) {
@@ -72,18 +182,18 @@ void _semantic_analysis(ASTNode *node) {
             fprintf(stderr, "INFO - Performing sem_anal into code block\n");
             // Recurse into new structure
             for (size_t i = 0; i < node->block.stmt_count; i++) {
-                semantic_analysis(node->block.statements[i]);
+                _semantic_analysis(node->block.statements[i]);
             }
             break;
         }
         case AST_FUNCTION_DEF: {
             fprintf(stderr, "INFO - Performing sem_anal into %s\n", node->function_def.name);
-            semantic_analysis(node->function_def.body);
+            _semantic_analysis(node->function_def.body);
             break;
         }
         case AST_BINARY_OP: {
-            semantic_analysis(node->binary_op.left);
-            semantic_analysis(node->binary_op.right);
+            _semantic_analysis(node->binary_op.left);
+            _semantic_analysis(node->binary_op.right);
             break;
         }
         default: {
@@ -94,11 +204,15 @@ void _semantic_analysis(ASTNode *node) {
 
 void semantic_analysis(ASTNode *node) {
     switch (node->type) {
+        // the only case
         case AST_BLOCK: {
-            sa_block(node);
-            _semantic_analysis(node);
+            sa_block(node); // reorganize code in functions (transform the parent)
+            node = transform_ast(node); // embrace FLATness (transform the children)
+            _semantic_analysis(node); // type checking (read-only)
+            break;
         }
         default: {
+            fprintf(stderr, "FATAL - Could not recognize root node (%d, it's not a block)\n", node->type);
             break;
         }
     }

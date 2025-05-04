@@ -10,10 +10,28 @@ ASTNode *create_ast_block(ASTNode **block, unsigned int stmt_count) {
     // shallow copy again again
     node->block.statements = malloc(sizeof(ASTNode) * stmt_count);
     memcpy(node->block.statements, block, sizeof(ASTNode) * stmt_count);
+
     node->block.stmt_count = stmt_count;
 
     return node;
 }
+
+ASTNode* create_ast_let_in(char **names, ASTNode **values, unsigned int count, ASTNode *body) {
+    ASTNode *node = malloc(sizeof(ASTNode));
+    node->type = AST_LET_IN;
+
+    // shallow copy again again again
+    node->let_in.var_names = malloc(sizeof(char*) * count);
+    memcpy(node->let_in.var_names, names, sizeof(char*) * count);
+
+    node->let_in.var_values = malloc(sizeof(ASTNode) * count);
+    memcpy(node->let_in.var_values, values, sizeof(ASTNode) * count);
+
+    node->let_in.var_count = count;
+    node->let_in.body = body;
+    return node;
+}
+
 
 ASTNode *create_ast_variable_def(char *name, ASTNode *body) {
     ASTNode *node = malloc(sizeof(ASTNode));

@@ -16,3 +16,8 @@ src/parser.output
 out/
 build/
 comp
+
+# test
+**/__pycache__/*
+out
+out.ll
