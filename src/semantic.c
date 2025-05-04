@@ -17,7 +17,10 @@ static void append_stmts(FlattenResult* dest, ASTNode** src, unsigned int count)
 }
 
 static FlattenResult flatten(ASTNode* node) {
-    // XXX we have the problem that we must know what node must be substituted
+    /*
+     * FLATten the AST recursively.
+     *
+     */
     FlattenResult res = {0};
 
     switch (node->type) {
