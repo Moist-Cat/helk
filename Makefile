@@ -89,4 +89,4 @@ src/codegen.o: src/codegen.c
 # clean
 
 clean: 
-	rm -rf ${OBJECTS} ${LEX_OBJECTS} ${YACC_OBJECTS} build/ hulk/
+	rm -rf ${OBJECTS} ${LEX_OBJECTS} ${YACC_OBJECTS} build/ hulk/ src/lexer.c src/parser.c

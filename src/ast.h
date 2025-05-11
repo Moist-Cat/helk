@@ -20,7 +20,8 @@ typedef enum {
     AST_FUNCTION_CALL,
     AST_VARIABLE,
     AST_VARIABLE_DEF,
-    AST_LET_IN
+    AST_LET_IN,
+    AST_CONDITIONAL
 } ASTNodeType;
 
 typedef struct ASTNode {
@@ -63,6 +64,11 @@ typedef struct ASTNode {
             unsigned int var_count;
             struct ASTNode *body;
         } let_in;
+        struct {
+            struct ASTNode* hypothesis;
+            struct ASTNode* thesis;
+            struct ASTNode* antithesis;
+        } conditional;
     };
 } ASTNode;
 
@@ -74,6 +80,7 @@ ASTNode *create_ast_function_call(char *name, ASTNode **args, unsigned int arg_c
 ASTNode *create_ast_variable(char *name);
 ASTNode *create_ast_variable_def(char *name, ASTNode *body);
 ASTNode* create_ast_let_in(char **names, ASTNode **values, unsigned int count, ASTNode *body);
+ASTNode* create_ast_conditional(ASTNode* hypothesis, ASTNode* thesis, ASTNode* antithesis);
 void free_ast(ASTNode *node);
 
 #endif

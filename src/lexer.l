@@ -15,6 +15,8 @@
 
 [ \t\n]                 ; // Skip whitespace
 [0-9]+                  { yylval->num = atoi(yytext); return NUMBER; }
+"if"            { return IF; }
+"else"          { return ELSE; }
 "in"             { return IN; }
 "let"             { return LET; }
 "function"             { return FUNCTION; }
@@ -29,6 +31,8 @@
 "/"                     { return DIVIDE; }
 "("                     { return LPAREN; }
 ")"                     { return RPAREN; }
+"{"             { return LBRACE; }
+"}"             { return RBRACE; }
 .                       { printf("Unknown character: %s\n", yytext); }
 
 %%

@@ -17,6 +17,12 @@ static char* new_temp(CodegenContext* ctx) {
     return temp;
 }
 
+static char* new_label(CodegenContext* ctx) {
+    char* temp = malloc(16);
+    sprintf(temp, "l%d", ctx->temp_counter++);
+    return temp;
+}
+
 static void add_symbol(CodegenContext* ctx, const char* name, const char* temp) {
     // Check for existing symbol
     for (size_t i = 0; i < ctx->symbols_size; i++) {
@@ -95,6 +101,40 @@ static char* get_def_args(char** args, unsigned int arg_count) {
     return result;
 }
 
+static char* gen_conditional(CodegenContext* ctx, ASTNode* node) {
+    char* hyp_temp = gen_expr(ctx, node->conditional.hypothesis);
+    char* thesis_label = new_label(ctx);
+    char* anti_label = new_label(ctx);
+    char* merge_label = new_label(ctx);
+
+    // Compare condition to 0 (false)
+    emit(ctx, "  %%cond%d = fcmp one double %s, 0.000000e+00\n", ctx->temp_counter++, hyp_temp);
+    emit(ctx, "  br i1 %%cond%d, label %%%s, label %%%s\n\n",
+        ctx->temp_counter-1, thesis_label, anti_label);
+
+    // Thesis block
+    emit(ctx, "%s:\n", thesis_label);
+    char* thesis_temp = gen_expr(ctx, node->conditional.thesis);
+    emit(ctx, "  br label %%%s\n\n", merge_label);
+
+    // Antithesis block
+    emit(ctx, "%s:\n", anti_label);
+    char* anti_temp = gen_expr(ctx, node->conditional.antithesis);
+    emit(ctx, "  br label %%%s\n\n", merge_label);
+
+    // Merge point
+    emit(ctx, "%s:\n", merge_label);
+    char* result_temp = new_temp(ctx);
+    emit(ctx, "  %s = phi double [ %s, %%%s ], [ %s, %%%s ]\n",
+        result_temp, thesis_temp, thesis_label, anti_temp, anti_label);
+
+    free(hyp_temp);
+    free(thesis_temp);
+    free(anti_temp);
+
+    return result_temp;
+}
+
 // notice how we mimic how the parser parses stuff here in codegen
 static char* gen_expr(CodegenContext* ctx, ASTNode* node) {
     /* Generate an expression.
@@ -167,6 +207,10 @@ static char* gen_expr(CodegenContext* ctx, ASTNode* node) {
             free(call_args);
 
             return temp;
+        }
+        case AST_CONDITIONAL: {
+            free(temp);
+            return gen_conditional(ctx, node);
         }
         case AST_BLOCK: {
             // Return zero by default

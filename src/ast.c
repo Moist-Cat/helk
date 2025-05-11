@@ -32,6 +32,20 @@ ASTNode* create_ast_let_in(char **names, ASTNode **values, unsigned int count, A
     return node;
 }
 
+ASTNode* create_ast_conditional(ASTNode* hypothesis, ASTNode* thesis, ASTNode* antithesis) {
+    ASTNode *node = malloc(sizeof(ASTNode));
+    node->type = AST_CONDITIONAL;
+
+    // we are not leaking memory
+    // and if we are, then it's not that much
+    // if it is, then it's not relevant for our use-case
+    node->conditional.hypothesis = hypothesis;
+    node->conditional.thesis = thesis;
+    node->conditional.antithesis = antithesis;
+
+    return node;
+}
+
 
 ASTNode *create_ast_variable_def(char *name, ASTNode *body) {
     ASTNode *node = malloc(sizeof(ASTNode));

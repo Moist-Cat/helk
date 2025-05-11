@@ -69,5 +69,10 @@ class TestCompiler(unittest.TestCase):
     def test_flat(self):
         expected = "\n".join(["7.000000",])
         self.run_test("flat.hk", expected)
+
+    def test_cond(self):
+        expected = "\n".join(["-5.000000",])
+        self.run_test("cond.hk", expected)
+
 if __name__ == "__main__":
     unittest.main()

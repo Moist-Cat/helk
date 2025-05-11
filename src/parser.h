@@ -62,13 +62,17 @@ extern int yydebug;
     DIVIDE = 263,                  /* DIVIDE  */
     LPAREN = 264,                  /* LPAREN  */
     RPAREN = 265,                  /* RPAREN  */
-    FUNCTION = 266,                /* FUNCTION  */
-    COMMA = 267,                   /* COMMA  */
-    ARROW = 268,                   /* ARROW  */
-    LET = 269,                     /* LET  */
-    EQUALS = 270,                  /* EQUALS  */
-    IN = 271,                      /* IN  */
-    SEMICOLON = 272                /* SEMICOLON  */
+    LBRACE = 266,                  /* LBRACE  */
+    RBRACE = 267,                  /* RBRACE  */
+    FUNCTION = 268,                /* FUNCTION  */
+    COMMA = 269,                   /* COMMA  */
+    ARROW = 270,                   /* ARROW  */
+    LET = 271,                     /* LET  */
+    EQUALS = 272,                  /* EQUALS  */
+    IN = 273,                      /* IN  */
+    SEMICOLON = 274,               /* SEMICOLON  */
+    IF = 275,                      /* IF  */
+    ELSE = 276                     /* ELSE  */
   };
   typedef enum yytokentype yytoken_kind_t;
 #endif
@@ -103,8 +107,16 @@ union YYSTYPE
         char *name;
         ASTNode *value;
     } var_def;
+    /*
+     * if (hypothesis) {BLOCK} else
+     */
+    struct {
+        ASTNode *hyphotesis; // expression that (must) evaluate to a bool
+        ASTNode *thesis; //  block
+        ASTNode *antithesis; // block
+    } conditional;
 
-#line 108 "src/parser.h"
+#line 120 "src/parser.h"
 
 };
 typedef union YYSTYPE YYSTYPE;
@@ -134,6 +146,6 @@ int yyparse (void *scanner);
 
     int parse(char *text, ASTNode **node);
 
-#line 138 "src/parser.h"
+#line 150 "src/parser.h"
 
 #endif /* !YY_YY_SRC_PARSER_H_INCLUDED  */

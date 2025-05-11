@@ -50,15 +50,24 @@ void yyerror(YYLTYPE *loc, void *scanner, const char *s);
         char *name;
         ASTNode *value;
     } var_def;
+    /*
+     * if (hypothesis) {BLOCK} else
+     */
+    struct {
+        ASTNode *hyphotesis; // expression that (must) evaluate to a bool
+        ASTNode *thesis; //  block
+        ASTNode *antithesis; // block
+    } conditional;
 }
 
 %token <num> NUMBER
 %token <str> IDENTIFIER
 %token PLUS MINUS MULTIPLY DIVIDE
-%token LPAREN RPAREN
+%token LPAREN RPAREN LBRACE RBRACE
 %token FUNCTION COMMA ARROW
 %token LET EQUALS IN
 %token SEMICOLON
+%token IF ELSE
 
 %type <node> expression
 %type <node> program
@@ -93,8 +102,8 @@ statement_block: /* nothing */ { $$.count = 0; $$.statements = NULL; }
                ;
 
 statement: variable_def { $$ = $1; }
-         | expression {$$ = $1; }
-         | function_def {$$ = $1; }
+         | expression { $$ = $1; }
+         | function_def { $$ = $1; }
          ;
 
 variable_def_item:
@@ -150,8 +159,17 @@ expression: NUMBER              { $$ = create_ast_number($1); }
         $$ = create_ast_let_in($2.names, $2.values, $2.count, $4);
         free($2.names);  // Free array containers only
         free($2.values);
+    }     
+          |
+    IF LPAREN expression RPAREN LBRACE statement_block RBRACE ELSE LBRACE statement_block RBRACE {
+        $$ = create_ast_conditional(
+            $3,
+            create_ast_block($6.statements, $6.count),
+            create_ast_block($10.statements, $10.count)
+        );
+        free($6.statements);
+        free($10.statements);
     }
-    ;
           | identifier LPAREN call_args RPAREN    { $$ = create_ast_function_call($1, $3.args, $3.count); free($1); free($3.args);}
           | identifier {$$ = create_ast_variable($1); }
           | LPAREN expression RPAREN     { $$ = $2; }
