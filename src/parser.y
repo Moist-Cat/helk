@@ -68,6 +68,7 @@ void yyerror(YYLTYPE *loc, void *scanner, const char *s);
 %token LET EQUALS IN
 %token SEMICOLON
 %token IF ELSE
+%token WHILE
 
 %type <node> expression
 %type <node> program
@@ -170,6 +171,13 @@ expression: NUMBER              { $$ = create_ast_number($1); }
         free($6.statements);
         free($10.statements);
     }
+          | WHILE LPAREN expression RPAREN LBRACE statement_block RBRACE {
+                $$ = create_ast_while_loop(
+                    $3,
+                    create_ast_block($6.statements, $6.count)
+                );
+                free($6.statements);
+            }
           | identifier LPAREN call_args RPAREN    { $$ = create_ast_function_call($1, $3.args, $3.count); free($1); free($3.args);}
           | identifier {$$ = create_ast_variable($1); }
           | LPAREN expression RPAREN     { $$ = $2; }

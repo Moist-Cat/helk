@@ -10,10 +10,77 @@ typedef struct {
     ASTNode* expr;
 } FlattenResult;
 
+typedef struct {
+    ASTNode* node;
+    TypeKind expected;
+    TypeKind actual;
+} TypeConstraint;
+
+typedef struct {
+    TypeConstraint* constraints;
+    size_t count;
+} ConstraintSystem;
+
 static void append_stmts(FlattenResult* dest, ASTNode** src, unsigned int count) {
     dest->stmts = realloc(dest->stmts, (dest->stmt_count + count) * sizeof(ASTNode*));
     memcpy(dest->stmts + dest->stmt_count, src, count * sizeof(ASTNode*));
     dest->stmt_count += count;
+}
+
+TypeKind solve_constraints(ConstraintSystem* cs) {
+    int changed;
+    do {
+        changed = 0;
+        for(size_t i=0; i<cs->count; i++) {
+            TypeConstraint* c = &cs->constraints[i];
+
+            if(c->actual == TYPE_UNKNOWN && c->expected != TYPE_UNKNOWN) {
+                c->actual = c->expected;
+                changed = 1;
+            }
+
+            if(c->expected == TYPE_UNKNOWN && c->actual != TYPE_UNKNOWN) {
+                c->expected = c->actual;
+                changed = 1;
+            }
+
+            if(c->expected != c->actual) {
+                return TYPE_ERROR;
+            }
+        }
+    } while(changed > 0);
+
+    return TYPE_UNKNOWN;
+}
+
+void add_constraint(ConstraintSystem *cs, ASTNode *node, TypeInfo type_info) {
+    /* 
+     * `node` is of type `type_info`
+     *
+     * */
+}
+
+
+void collect_constraints(ASTNode* node, ConstraintSystem* cs) {
+    switch(node->type) {
+        case AST_BINARY_OP:
+            // Constraint: left_type == right_type == result_type
+            add_constraint(cs, node->binary_op.left, node->type_info);
+            add_constraint(cs, node->binary_op.right, node->type_info);
+            add_constraint(cs, node, node->binary_op.left->type_info);
+            break;
+
+        case AST_NUMBER:
+            node->type_info = (TypeInfo){TYPE_DOUBLE, 1};
+            break;
+
+        case AST_VARIABLE:
+            add_constraint(cs, node, node->type_info);
+            break;
+
+        case AST_FUNCTION_DEF:
+            add_constraint(cs, node, node->type_info);
+    }
 }
 
 static FlattenResult flatten(ASTNode* node) {

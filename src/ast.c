@@ -32,6 +32,17 @@ ASTNode* create_ast_let_in(char **names, ASTNode **values, unsigned int count, A
     return node;
 }
 
+
+ASTNode* create_ast_while_loop(ASTNode* cond, ASTNode* body) {
+    ASTNode *node = malloc(sizeof(ASTNode));
+    node->type = AST_WHILE_LOOP;
+
+    node->while_loop.cond = cond;
+    node->while_loop.body = body;
+
+    return node;
+}
+
 ASTNode* create_ast_conditional(ASTNode* hypothesis, ASTNode* thesis, ASTNode* antithesis) {
     ASTNode *node = malloc(sizeof(ASTNode));
     node->type = AST_CONDITIONAL;

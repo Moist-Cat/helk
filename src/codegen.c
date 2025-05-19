@@ -101,6 +101,38 @@ static char* get_def_args(char** args, unsigned int arg_count) {
     return result;
 }
 
+static char* gen_while_loop(CodegenContext* ctx, ASTNode* node) {
+    char* cond_label = new_label(ctx);
+    char* body_label = new_label(ctx);
+    char* end_label = new_label(ctx);
+
+    // Initial unconditional branch to condition
+    emit(ctx, "  br label %%%s\n", cond_label);
+
+    // Condition block
+    emit(ctx, "%s:\n", cond_label);
+    char* cond_temp = gen_expr(ctx, node->while_loop.cond);
+    emit(ctx, "  %%while_cond = fcmp one double %s, 0.000000e+00\n", cond_temp);
+    emit(ctx, "  br i1 %%while_cond, label %%%s, label %%%s\n",
+        body_label, end_label);
+    free(cond_temp);
+
+    // Body block
+    emit(ctx, "%s:\n", body_label);
+    char* body_temp = gen_expr(ctx, node->while_loop.body);
+    free(body_temp);
+    emit(ctx, "  br label %%%s\n", cond_label);  // Loop back
+
+    // End block
+    emit(ctx, "%s:\n", end_label);
+
+    // Return dummy value (0.0)
+    char* result = new_temp(ctx);
+    emit(ctx, "  %s = fadd double 0.000000e+00, 0.000000e+00\n", result);
+    return result;
+}
+
+
 static char* gen_conditional(CodegenContext* ctx, ASTNode* node) {
     char* hyp_temp = gen_expr(ctx, node->conditional.hypothesis);
     char* thesis_label = new_label(ctx);
@@ -211,6 +243,10 @@ static char* gen_expr(CodegenContext* ctx, ASTNode* node) {
         case AST_CONDITIONAL: {
             free(temp);
             return gen_conditional(ctx, node);
+        }
+        case AST_WHILE_LOOP: {
+            free(temp);
+            return gen_while_loop(ctx, node);
         }
         case AST_BLOCK: {
             // Return zero by default

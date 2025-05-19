@@ -19,6 +19,7 @@
 "else"          { return ELSE; }
 "in"             { return IN; }
 "let"             { return LET; }
+"while"         { return WHILE; }
 "function"             { return FUNCTION; }
 ";"                    { return SEMICOLON; }
 ","                    { return COMMA; }

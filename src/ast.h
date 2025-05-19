@@ -9,8 +9,16 @@ typedef enum {
 } ASTBinaryOp;
 
 typedef enum {
-    FLOAT
-} ValueType;
+    TYPE_INT,
+    TYPE_DOUBLE,
+    TYPE_UNKNOWN,
+    TYPE_ERROR
+} TypeKind;
+
+typedef struct {
+    TypeKind kind;
+    unsigned int is_literal;  // For number literals
+} TypeInfo;
 
 typedef enum {
     AST_BLOCK,
@@ -21,12 +29,14 @@ typedef enum {
     AST_VARIABLE,
     AST_VARIABLE_DEF,
     AST_LET_IN,
-    AST_CONDITIONAL
+    AST_CONDITIONAL,
+    AST_WHILE_LOOP
 } ASTNodeType;
 
 typedef struct ASTNode {
     ASTNodeType type;
-    ValueType val_type;
+    TypeInfo type_info;
+    unsigned int type_var_id;  // Index in constraint system
     union {
         double number;
         struct {
@@ -69,18 +79,23 @@ typedef struct ASTNode {
             struct ASTNode* thesis;
             struct ASTNode* antithesis;
         } conditional;
+        struct {
+            struct ASTNode* cond;
+            struct ASTNode* body;
+        } while_loop;
     };
 } ASTNode;
 
-ASTNode *create_ast_block(ASTNode **block, unsigned int stmt_count);
-ASTNode *create_ast_number(double value);
-ASTNode *create_ast_binary_op(ASTNode *left, ASTNode *right, ASTBinaryOp op);
-ASTNode *create_ast_function_def(char *name, ASTNode *body, char **args, unsigned int arg_count);
-ASTNode *create_ast_function_call(char *name, ASTNode **args, unsigned int arg_count);
-ASTNode *create_ast_variable(char *name);
-ASTNode *create_ast_variable_def(char *name, ASTNode *body);
+ASTNode* create_ast_block(ASTNode **block, unsigned int stmt_count);
+ASTNode* create_ast_number(double value);
+ASTNode* create_ast_binary_op(ASTNode *left, ASTNode *right, ASTBinaryOp op);
+ASTNode* create_ast_function_def(char *name, ASTNode *body, char **args, unsigned int arg_count);
+ASTNode* create_ast_function_call(char *name, ASTNode **args, unsigned int arg_count);
+ASTNode* create_ast_variable(char *name);
+ASTNode* create_ast_variable_def(char *name, ASTNode *body);
 ASTNode* create_ast_let_in(char **names, ASTNode **values, unsigned int count, ASTNode *body);
 ASTNode* create_ast_conditional(ASTNode* hypothesis, ASTNode* thesis, ASTNode* antithesis);
+ASTNode* create_ast_while_loop(ASTNode* cond, ASTNode* body);
 void free_ast(ASTNode *node);
 
 #endif

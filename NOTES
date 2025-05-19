@@ -1,2 +1,6 @@
 > i'm unable to parse nested let-ins inside the variable declarations
 > i'm unable to codegen correct code for nested ifs
+
+
+> o vienen del loop o vienen del entry
+> gestiono el cambio de variable con phi
