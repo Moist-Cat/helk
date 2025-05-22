@@ -9,15 +9,14 @@ typedef enum {
 } ASTBinaryOp;
 
 typedef enum {
-    TYPE_INT,
-    TYPE_DOUBLE,
     TYPE_UNKNOWN,
+    TYPE_DOUBLE,
     TYPE_ERROR
 } TypeKind;
 
 typedef struct {
     TypeKind kind;
-    unsigned int is_literal;  // For number literals
+    unsigned int is_literal;
 } TypeInfo;
 
 typedef enum {

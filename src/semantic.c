@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include <stdbool.h>
 
 typedef struct {
     ASTNode** stmts;
@@ -11,76 +12,169 @@ typedef struct {
 } FlattenResult;
 
 typedef struct {
-    ASTNode* node;
-    TypeKind expected;
-    TypeKind actual;
+    TypeInfo* expected;
+    ASTNode* node;  // For error reporting
 } TypeConstraint;
 
 typedef struct {
     TypeConstraint* constraints;
     size_t count;
+    size_t capacity;
 } ConstraintSystem;
 
+// type inference
+bool solve_constraints(ConstraintSystem* cs) {
+    fprintf(stderr, "INFO - Solving constraints...\n");
+    bool changed;
+    do {
+        changed = false;
+        for(size_t i=0; i<cs->count; i++) {
+            TypeConstraint* c = &cs->constraints[i];
+            TypeInfo* t = c->expected;
+            int expected = t->kind;
+            int actual = c->node->type_info.kind;
+
+            // Handle literals first
+            if(c->node->type_info.is_literal) {
+                if(expected != TYPE_UNKNOWN &&
+                   expected != actual) {
+                    fprintf(stderr, "ERROR - Literal type mismatch");
+                    return false;
+                }
+                continue;
+            }
+
+            // Propagate concrete -> unknown
+            if(expected != TYPE_UNKNOWN &&
+               actual == TYPE_UNKNOWN) {
+                c->node->type_info.kind = ((TypeInfo*) (c->expected))->kind;
+
+                fprintf(stderr, "INFO - Solved type for node type=%d; to %d\n", c->node->type, c->node->type_info.kind);
+                changed = true;
+            }
+
+            // Check for conflicts
+            if(expected != TYPE_UNKNOWN &&
+               actual != TYPE_UNKNOWN &&
+               expected != actual) {
+                fprintf(stderr, "ERROR - Literal type mismatch");
+                return false;
+            }
+        }
+    } while(changed);
+
+    return true;
+}
+
+void add_constraint(ConstraintSystem* cs, ASTNode* node, 
+                   TypeInfo* expected) {
+    if (cs->count >= cs->capacity) {
+        cs->capacity = cs->capacity ? cs->capacity * 2 : 16;
+        cs->constraints = realloc(cs->constraints, 
+                                cs->capacity * sizeof(TypeConstraint));
+    }
+    
+    cs->constraints[cs->count++] = (TypeConstraint){
+        .expected = expected,
+        .node = node
+    };
+}
+
+
+void process_node(ASTNode* node, ConstraintSystem* cs) {
+    switch(node->type) {
+        case AST_BINARY_OP: {
+            // Both operands must be numeric
+
+            TypeInfo *lit = malloc(sizeof(TypeInfo));
+            lit->kind = TYPE_DOUBLE;
+            lit->is_literal = true;
+
+            add_constraint(cs, node->binary_op.left, lit);
+            add_constraint(cs, node->binary_op.right, lit);
+            // Result is float
+            add_constraint(cs, node, lit);
+            break;
+        }
+
+        case AST_CONDITIONAL: {
+            /*
+            add_constraint(cs, node,
+                node->conditional.thesis->type_info);
+
+            // Hypothesis must be numeric (treated as float)
+            add_constraint(cs, node->conditional.hypothesis,
+                (TypeInfo){TYPE_DOUBLE, false});
+            // Branches must match
+            add_constraint(cs, node->conditional.thesis,
+                node->conditional.antithesis->type_info);
+            add_constraint(cs, node->conditional.antithesis,
+                node->conditional.thesis->type_info);
+            */
+            break;
+        }
+
+        case AST_BLOCK: {
+            fprintf(stderr, "INFO - Found block (size=%d) during constraint collection\n", node->block.stmt_count);
+
+            // depends on the type of the last statement
+            if (node->block.stmt_count > 0) {
+                add_constraint(cs, node,
+                    &node->block.statements[node->block.stmt_count - 1]->type_info);
+            }
+            else {
+                TypeInfo *lit = malloc(sizeof(TypeInfo));
+                lit->kind = TYPE_DOUBLE;
+                lit->is_literal = true;
+
+                // default to float
+                add_constraint(cs, node, lit);
+            }
+            break;
+        }
+        case AST_FUNCTION_CALL: {
+            TypeInfo *lit = malloc(sizeof(TypeInfo));
+            lit->kind = TYPE_DOUBLE;
+            lit->is_literal = true;
+
+            add_constraint(cs, node, lit);
+            break;
+        }
+        case AST_FUNCTION_DEF: {
+            fprintf(stderr, "INFO - Found function (name=%s) during constraint collection\n", node->function_def.name);
+
+            add_constraint(cs, node,
+                &node->function_def.body->type_info);
+            break;
+        }
+        case AST_VARIABLE: {break;}
+        case AST_VARIABLE_DEF: {break;}
+        case AST_LET_IN: {break;}
+        case AST_WHILE_LOOP: {break;}
+
+        case AST_NUMBER: {
+            // Literals are terminal - no constraints
+            fprintf(stderr, "INFO - Found terminal %f during constraint collection\n", node->number);
+
+            // NOOB NOTE: If we don't malloc the memory is used by something else eventually
+            TypeInfo *lit = malloc(sizeof(TypeInfo));
+            lit->kind = TYPE_DOUBLE;
+            lit->is_literal = true;
+
+            add_constraint(cs, node, lit);
+            //node->type_info = (TypeInfo){TYPE_DOUBLE, 1};
+            break;
+        }
+
+        // Handle other node types
+    }
+}
+
+// FLAT
 static void append_stmts(FlattenResult* dest, ASTNode** src, unsigned int count) {
     dest->stmts = realloc(dest->stmts, (dest->stmt_count + count) * sizeof(ASTNode*));
     memcpy(dest->stmts + dest->stmt_count, src, count * sizeof(ASTNode*));
     dest->stmt_count += count;
-}
-
-TypeKind solve_constraints(ConstraintSystem* cs) {
-    int changed;
-    do {
-        changed = 0;
-        for(size_t i=0; i<cs->count; i++) {
-            TypeConstraint* c = &cs->constraints[i];
-
-            if(c->actual == TYPE_UNKNOWN && c->expected != TYPE_UNKNOWN) {
-                c->actual = c->expected;
-                changed = 1;
-            }
-
-            if(c->expected == TYPE_UNKNOWN && c->actual != TYPE_UNKNOWN) {
-                c->expected = c->actual;
-                changed = 1;
-            }
-
-            if(c->expected != c->actual) {
-                return TYPE_ERROR;
-            }
-        }
-    } while(changed > 0);
-
-    return TYPE_UNKNOWN;
-}
-
-void add_constraint(ConstraintSystem *cs, ASTNode *node, TypeInfo type_info) {
-    /* 
-     * `node` is of type `type_info`
-     *
-     * */
-}
-
-
-void collect_constraints(ASTNode* node, ConstraintSystem* cs) {
-    switch(node->type) {
-        case AST_BINARY_OP:
-            // Constraint: left_type == right_type == result_type
-            add_constraint(cs, node->binary_op.left, node->type_info);
-            add_constraint(cs, node->binary_op.right, node->type_info);
-            add_constraint(cs, node, node->binary_op.left->type_info);
-            break;
-
-        case AST_NUMBER:
-            node->type_info = (TypeInfo){TYPE_DOUBLE, 1};
-            break;
-
-        case AST_VARIABLE:
-            add_constraint(cs, node, node->type_info);
-            break;
-
-        case AST_FUNCTION_DEF:
-            add_constraint(cs, node, node->type_info);
-    }
 }
 
 static FlattenResult flatten(ASTNode* node) {
@@ -242,28 +336,30 @@ void sa_block(ASTNode *node) {
     //free(main_body);
 }
 
-void _semantic_analysis(ASTNode *node) {
+void _semantic_analysis(ASTNode *node, ConstraintSystem* cs) {
     /* Anything read-only */
     // at this point, let-ins do not exist
     if (!node) return;
+
+    process_node(node, cs);
 
     switch (node->type) {
         case AST_BLOCK: {
             fprintf(stderr, "INFO - Performing sem_anal into code block\n");
             // Recurse into new structure
             for (size_t i = 0; i < node->block.stmt_count; i++) {
-                _semantic_analysis(node->block.statements[i]);
+                _semantic_analysis(node->block.statements[i], cs);
             }
             break;
         }
         case AST_FUNCTION_DEF: {
             fprintf(stderr, "INFO - Performing sem_anal into %s\n", node->function_def.name);
-            _semantic_analysis(node->function_def.body);
+            _semantic_analysis(node->function_def.body, cs);
             break;
         }
         case AST_BINARY_OP: {
-            _semantic_analysis(node->binary_op.left);
-            _semantic_analysis(node->binary_op.right);
+            _semantic_analysis(node->binary_op.left, cs);
+            _semantic_analysis(node->binary_op.right, cs);
             break;
         }
         default: {
@@ -278,7 +374,10 @@ void semantic_analysis(ASTNode *node) {
         case AST_BLOCK: {
             sa_block(node); // reorganize code in functions (transform the parent)
             node = transform_ast(node); // embrace FLATness (transform the children)
-            _semantic_analysis(node); // type checking (read-only)
+            ConstraintSystem cs = {NULL, 0, 0};
+            _semantic_analysis(node, &cs); // type checking (read-only)
+                                           //
+            solve_constraints(&cs);
             break;
         }
         default: {
