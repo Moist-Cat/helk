@@ -66,10 +66,15 @@ int main(int argc, char** argv) {
     }
     free(data);
 
-    semantic_analysis(ast);
+    bool res = semantic_analysis(ast);
 
-    codegen(&ctx, ast);
-    codegen_cleanup(&ctx);
+    if (res) {
+        codegen(&ctx, ast);
+        codegen_cleanup(&ctx);
+    }
+    else {
+        fprintf(stderr, "FATAL - Semantic Analysis failed! Can not generate correct code\n");
+    }
 
     free_ast(ast);
     return 0;

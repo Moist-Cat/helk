@@ -73,7 +73,8 @@ extern int yydebug;
     SEMICOLON = 274,               /* SEMICOLON  */
     IF = 275,                      /* IF  */
     ELSE = 276,                    /* ELSE  */
-    WHILE = 277                    /* WHILE  */
+    WHILE = 277,                   /* WHILE  */
+    STRING_LITERAL = 278           /* STRING_LITERAL  */
   };
   typedef enum yytokentype yytoken_kind_t;
 #endif
@@ -117,7 +118,7 @@ union YYSTYPE
         ASTNode *antithesis; // block
     } conditional;
 
-#line 121 "src/parser.h"
+#line 122 "src/parser.h"
 
 };
 typedef union YYSTYPE YYSTYPE;
@@ -147,6 +148,6 @@ int yyparse (void *scanner);
 
     int parse(char *text, ASTNode **node);
 
-#line 151 "src/parser.h"
+#line 152 "src/parser.h"
 
 #endif /* !YY_YY_SRC_PARSER_H_INCLUDED  */

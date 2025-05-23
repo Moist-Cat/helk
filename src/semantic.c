@@ -34,11 +34,13 @@ bool solve_constraints(ConstraintSystem* cs) {
             int expected = t->kind;
             int actual = c->node->type_info.kind;
 
+            fprintf(stderr, "Expected: %d ; Actual: %d\n\n", expected, actual);
+
             // Handle literals first
             if(c->node->type_info.is_literal) {
                 if(expected != TYPE_UNKNOWN &&
                    expected != actual) {
-                    fprintf(stderr, "ERROR - Literal type mismatch");
+                    fprintf(stderr, "ERROR - Literal type mismatch\n");
                     return false;
                 }
                 continue;
@@ -57,7 +59,7 @@ bool solve_constraints(ConstraintSystem* cs) {
             if(expected != TYPE_UNKNOWN &&
                actual != TYPE_UNKNOWN &&
                expected != actual) {
-                fprintf(stderr, "ERROR - Literal type mismatch");
+                fprintf(stderr, "ERROR - Literal type mismatch\n");
                 return false;
             }
         }
@@ -162,7 +164,19 @@ void process_node(ASTNode* node, ConstraintSystem* cs) {
             lit->is_literal = true;
 
             add_constraint(cs, node, lit);
-            //node->type_info = (TypeInfo){TYPE_DOUBLE, 1};
+            break;
+        }
+
+        case AST_STRING: {
+            // Literals are terminal - no constraints
+            fprintf(stderr, "INFO - Found terminal '%s' during constraint collection\n", node->string);
+
+            // NOOB NOTE: If we don't malloc the memory is used by something else eventually
+            TypeInfo *lit = malloc(sizeof(TypeInfo));
+            lit->kind = TYPE_STRING;
+            lit->is_literal = true;
+
+            add_constraint(cs, node, lit);
             break;
         }
 
@@ -368,7 +382,7 @@ void _semantic_analysis(ASTNode *node, ConstraintSystem* cs) {
     }
 }
 
-void semantic_analysis(ASTNode *node) {
+bool semantic_analysis(ASTNode *node) {
     switch (node->type) {
         // the only case
         case AST_BLOCK: {
@@ -377,12 +391,13 @@ void semantic_analysis(ASTNode *node) {
             ConstraintSystem cs = {NULL, 0, 0};
             _semantic_analysis(node, &cs); // type checking (read-only)
                                            //
-            solve_constraints(&cs);
-            break;
+            bool res = solve_constraints(&cs);
+            return res;
         }
         default: {
             fprintf(stderr, "FATAL - Could not recognize root node (%d, it's not a block)\n", node->type);
-            break;
+            return false;
         }
     }
+    return true;
 }

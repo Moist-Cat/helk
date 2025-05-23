@@ -107,6 +107,15 @@ ASTNode *create_ast_number(double value) {
     return node;
 }
 
+ASTNode *create_ast_string(char* ptr) {
+    ASTNode *node = malloc(sizeof(ASTNode));
+
+    node->type = AST_STRING;
+    node->string = strdup(ptr);
+
+    return node;
+}
+
 ASTNode *create_ast_binary_op(ASTNode *left, ASTNode *right, ASTBinaryOp op) {
     ASTNode *node = malloc(sizeof(ASTNode));
     node->type = AST_BINARY_OP;

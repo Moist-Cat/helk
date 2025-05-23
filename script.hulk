@@ -1,2 +1,1 @@
-let x=2 in x;
-print(1+1);
+"good morning sirs" + 1;

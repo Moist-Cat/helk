@@ -69,6 +69,7 @@ void yyerror(YYLTYPE *loc, void *scanner, const char *s);
 %token SEMICOLON
 %token IF ELSE
 %token WHILE
+%token <str> STRING_LITERAL
 
 %type <node> expression
 %type <node> program
@@ -151,6 +152,7 @@ identifier: IDENTIFIER { $$ = strdup($1); }
           ;
 
 expression: NUMBER              { $$ = create_ast_number($1); }
+          | STRING_LITERAL      { $$ = create_ast_string($1); free($1); }
           | expression PLUS expression   { $$ = create_ast_binary_op($1, $3, OP_ADD); }
           | expression MINUS expression  { $$ = create_ast_binary_op($1, $3, OP_SUB); }
           | expression MULTIPLY expression { $$ = create_ast_binary_op($1, $3, OP_MUL); }

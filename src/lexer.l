@@ -4,6 +4,31 @@
 #include "ast.h"
 #include "parser.h"
 #include <string.h>
+
+char* process_string(const char* input) {
+    // Remove quotes and process escape sequences
+    size_t len = strlen(input) - 2;
+    char* out = malloc(len + 1);
+    char* p = out;
+    
+    for(const char* s = input+1; *s && *(s+1); s++) {
+        if(*s == '\\') {
+            switch(*(++s)) {
+                case 'n': *p++ = '\n'; break;
+                case 't': *p++ = '\t'; break;
+                case '"': *p++ = '"'; break;
+                case '\\': *p++ = '\\'; break;
+                default: 
+                    fprintf(stderr, "Unknown escape: \\%c\n", *s);
+                    *p++ = *s;
+            }
+        } else {
+            *p++ = *s;
+        }
+    }
+    *p = '\0';
+    return out;
+}
 %}
 
 %option noyywrap
@@ -12,8 +37,11 @@
 %option reentrant
 
 %%
-
 [ \t\n]                 ; // Skip whitespace
+\"([^"\\]|\\.)*\"   { 
+    yylval->str = process_string(yytext); 
+    return STRING_LITERAL; 
+}
 [0-9]+                  { yylval->num = atoi(yytext); return NUMBER; }
 "if"            { return IF; }
 "else"          { return ELSE; }

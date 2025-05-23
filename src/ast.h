@@ -9,8 +9,9 @@ typedef enum {
 } ASTBinaryOp;
 
 typedef enum {
-    TYPE_UNKNOWN,
+    TYPE_UNKNOWN, // unkown first since we default to zero
     TYPE_DOUBLE,
+    TYPE_STRING,
     TYPE_ERROR
 } TypeKind;
 
@@ -22,6 +23,7 @@ typedef struct {
 typedef enum {
     AST_BLOCK,
     AST_NUMBER,
+    AST_STRING,
     AST_BINARY_OP,
     AST_FUNCTION_DEF,
     AST_FUNCTION_CALL,
@@ -38,6 +40,7 @@ typedef struct ASTNode {
     unsigned int type_var_id;  // Index in constraint system
     union {
         double number;
+        char* string;
         struct {
             struct ASTNode *left;
             struct ASTNode *right;
@@ -86,6 +89,7 @@ typedef struct ASTNode {
 } ASTNode;
 
 ASTNode* create_ast_block(ASTNode **block, unsigned int stmt_count);
+ASTNode *create_ast_string(char* ptr);
 ASTNode* create_ast_number(double value);
 ASTNode* create_ast_binary_op(ASTNode *left, ASTNode *right, ASTBinaryOp op);
 ASTNode* create_ast_function_def(char *name, ASTNode *body, char **args, unsigned int arg_count);

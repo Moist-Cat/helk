@@ -340,6 +340,9 @@ void codegen_init(CodegenContext* ctx, FILE* output) {
     ctx->symbols_size = 0;
     emit(ctx, "; ModuleID = 'memelang'\n");
     emit(ctx, "declare double @print(double)\n");
+
+    // Fill in the rest of the declarations right here
+    // explore the AST and codegen all decls (functions, strings, ...)
     emit(ctx, "\n");
 }
 
