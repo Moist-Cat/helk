@@ -8,4 +8,4 @@
 > are either modified by the loop or they are not
 > allow the change and manage it with phi (to avoid undefined symbols being used)
 
-> fix while loops, fix ifs <=> turing complete
+> fix ifs <=> turing complete

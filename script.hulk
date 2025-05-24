@@ -1,5 +1,11 @@
-let a = 10;
-while (a) {
-    let a = 1 - 1;
-    print(a);
+let a = 5;
+let b = 5;
+
+let x = if (a - b + 1) {
+    let tmp = if (a - a) { a * 2; } else {a * 10;};
+    tmp + 5;
+} else {
+    b - 10;
 };
+
+print(x);

@@ -23,6 +23,13 @@ static char* new_label(CodegenContext* ctx) {
     return temp;
 }
 
+static char* to_str_ptr(const char* name) {
+    char* temp = malloc(17);
+    sprintf(temp, "@%s", name);
+
+    return temp;
+}
+
 static void add_symbol(CodegenContext* ctx, const char* name, const char* temp) {
     // Check for existing symbol
     for (size_t i = 0; i < ctx->symbols_size; i++) {
@@ -69,7 +76,7 @@ static char* get_call_args(CodegenContext* ctx, ASTNode** args, unsigned int arg
     for (size_t i = 0; i < arg_count; i++) {
         int written;
         if (args[i]->type_info.kind == TYPE_STRING) {
-            written = sprintf(ptr, "i8* @%s%s", temps[i], (i < arg_count-1) ? ", " : "");
+            written = sprintf(ptr, "i8* %s%s", temps[i], (i < arg_count-1) ? ", " : "");
         }
         else {
             written = sprintf(ptr, "double %s%s", temps[i], (i < arg_count-1) ? ", " : "");
@@ -193,7 +200,6 @@ static char* gen_expr(CodegenContext* ctx, ASTNode* node) {
                 return NULL;
             }
 
-            //emit(ctx, "  %s = call double @prints(i8* @%s)\n", temp, var_temp);
             free(temp);
 
             return var_temp;
@@ -218,10 +224,14 @@ static char* gen_expr(CodegenContext* ctx, ASTNode* node) {
         }            
         case AST_VARIABLE: {
             const char* var_temp = find_symbol(ctx, node->variable.name);
+            const char* type;
             if (node->type_info.kind == TYPE_STRING) {
-                // Strings are immutable
-                return var_temp;
+                type = "i8*";
             }
+            else {
+                type = "double";
+            }
+
             if (!var_temp) {
                 fprintf(stderr, "WARNING: Undefined variable '%s'\n", node->variable.name);
 
@@ -229,7 +239,7 @@ static char* gen_expr(CodegenContext* ctx, ASTNode* node) {
                 return temp;
             }
 
-            emit(ctx, "  %s = fadd double %s, 0.000000e+00 ; Load variable\n", temp, var_temp);
+            emit(ctx, "  %s = load %s, %s* %s\n", temp, type, type, var_temp);
             return temp;
         }
         case AST_VARIABLE_DEF: {
@@ -238,26 +248,38 @@ static char* gen_expr(CodegenContext* ctx, ASTNode* node) {
             // (we have to store whatever is inside in a temp anyway)
             // So we simply rename the variable.
             free(temp); // not needed
-            
+
             char* value_temp = gen_expr(ctx, node->variable_def.body);
             const char* var_temp = find_symbol(ctx, node->variable_def.name);
+            const char* type;
+            char* var_ptr;
+
+            if (node->type_info.kind == TYPE_STRING) {
+                type = "i8*";
+            }
+            else {
+                type = "double";
+            }
+
             if (var_temp) {
                 fprintf(stderr, "INFO - Redefinition detected: %s", node->variable_def.name);
-                // XXX fails for strings
+                var_ptr = var_temp;
                 emit(
-                    ctx, "  %s = fadd double %s, 0.00000e+00 ; Variable redefiniton: %s = %s\n", 
+                    ctx, "  ; Variable redefiniton: %s = %s\n", 
                     var_temp, value_temp,
                     node->variable_def.name, value_temp
                 );
-                return var_temp;
             }
             else {
-                add_symbol(ctx, node->variable_def.name, value_temp);
+                var_ptr = new_temp(ctx);
+                add_symbol(ctx, node->variable_def.name, var_ptr);
                 emit(
                     ctx, "  ; Variable assignment: %s = %s\n", 
                     node->variable_def.name, value_temp
                 );
+                emit(ctx, "  %s = alloca %s\n", var_ptr, type);
             }
+            emit(ctx, "  store %s %s, %s* %s\n", type, value_temp, type, var_ptr);
             return value_temp;
         }
 
@@ -388,9 +410,12 @@ void _codegen_declarations(CodegenContext* ctx, ASTNode *node) {
            );
 
 
-            add_symbol(ctx, escaped, temp);
+            const char* str_ptr = to_str_ptr(temp);
+
+            add_symbol(ctx, escaped, str_ptr);
 
             free(temp);
+            free(str_ptr);
             break;
         }
         case AST_BINARY_OP: {
