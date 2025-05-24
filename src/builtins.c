@@ -5,3 +5,7 @@ double print(double x) {
 
     return x;
 }
+
+double prints(char* ptr) {
+    return (double) puts(ptr);
+}

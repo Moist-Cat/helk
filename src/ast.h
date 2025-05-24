@@ -12,6 +12,7 @@ typedef enum {
     TYPE_UNKNOWN, // unkown first since we default to zero
     TYPE_DOUBLE,
     TYPE_STRING,
+    TYPE_TRIVAL, // for statements. In particular, function declarations
     TYPE_ERROR
 } TypeKind;
 
@@ -60,7 +61,6 @@ typedef struct ASTNode {
         } function_call;
         struct {
             char *name;
-
         } variable;
         struct {
             char *name;

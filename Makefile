@@ -33,8 +33,7 @@ run: build runtime
 	$(CC) out.o src/builtins.o -o out
 
 execute: hulk compile
-	$(CC) hulk/script.ll src/builtins.o -o hulk/script
-	./hulk/script
+	$(CC) hulk/script.ll src/builtins.o -o hulk/script && ./hulk/script
 
 runtime: $(HELPERS_OBJ)
 

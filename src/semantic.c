@@ -5,22 +5,11 @@
 #include <string.h>
 #include <stdbool.h>
 
-typedef struct {
-    ASTNode** stmts;
-    unsigned int stmt_count;
-    ASTNode* expr;
-} FlattenResult;
-
-typedef struct {
-    TypeInfo* expected;
-    ASTNode* node;  // For error reporting
-} TypeConstraint;
-
-typedef struct {
-    TypeConstraint* constraints;
-    size_t count;
-    size_t capacity;
-} ConstraintSystem;
+size_t hash(const char* s) {
+    size_t h = 5381;
+    while(*s) h = ((h << 5) + h) + *s++;
+    return h;
+}
 
 // type inference
 bool solve_constraints(ConstraintSystem* cs) {
@@ -30,11 +19,14 @@ bool solve_constraints(ConstraintSystem* cs) {
         changed = false;
         for(size_t i=0; i<cs->count; i++) {
             TypeConstraint* c = &cs->constraints[i];
+            //fprintf(stderr, "%s\n", c->node->function_call.name);
+            //fprintf(stderr, "%d\n", c->expected);
             TypeInfo* t = c->expected;
             int expected = t->kind;
             int actual = c->node->type_info.kind;
 
-            fprintf(stderr, "Expected: %d ; Actual: %d\n\n", expected, actual);
+
+            fprintf(stderr, "Expected: %d ; Actual: %d ; Node: %d\n\n", expected, actual, c->node->type);
 
             // Handle literals first
             if(c->node->type_info.is_literal) {
@@ -83,7 +75,106 @@ void add_constraint(ConstraintSystem* cs, ASTNode* node,
 }
 
 
-void process_node(ASTNode* node, ConstraintSystem* cs) {
+SymbolTable* create_symbol_table(SymbolTable* parent) {
+    SymbolTable* st = malloc(sizeof(SymbolTable));
+    st->entries = calloc(16, sizeof(SymbolEntry*));
+    st->size = 16;
+    st->parent = parent;
+
+    if (parent == NULL) {
+        // init builtins
+        char **pargs = malloc(sizeof(char*)*1);
+        pargs[0] = "[print_param_1]";
+
+        ASTNode* print = create_ast_function_def("print", NULL, pargs, 1);
+        print->type_info.kind = TYPE_DOUBLE;
+        symbol_table_add(st, "print", print);
+
+        char **psargs = malloc(sizeof(char*)*1);
+        psargs[0] = "[prints_param_1]";
+        ASTNode* prints = create_ast_function_def("prints", NULL, psargs, 1);
+        prints->type_info.kind = TYPE_DOUBLE;
+        symbol_table_add(st, "prints", prints);
+    }
+
+    return st;
+}
+
+void symbol_table_add(SymbolTable* st, const char* name, ASTNode* node) {
+    size_t idx = hash(name) % st->size;
+    SymbolEntry* entry = malloc(sizeof(SymbolEntry));
+    entry->name = strdup(name);
+    entry->node = node;
+    entry->next = st->entries[idx];
+    st->entries[idx] = entry;
+}
+
+ASTNode* symbol_table_lookup(SymbolTable* st, const char* name) {
+    for(SymbolTable* curr = st; curr; curr = curr->parent) {
+        size_t idx = hash(name) % curr->size;
+        for(SymbolEntry* e = curr->entries[idx]; e; e = e->next) {
+            if(strcmp(e->name, name) == 0) {
+                fprintf(stderr, "INFO - Found symbol %s\n", name);
+                return e->node;
+            }
+        }
+    }
+    return NULL;
+}
+
+void process_function_call(
+    ASTNode* call,
+    ConstraintSystem* cs,
+    SymbolTable* current_scope
+) {
+    // 1. Lookup function definition
+    fprintf(stderr, "INFO - Looking for symbol %s\n", call->function_call.name);
+    ASTNode* function_def = symbol_table_lookup(current_scope, call->function_call.name);
+
+    if(!function_def) {
+        fprintf(stderr,  "Undefined function '%s'\n", call->function_call.name);
+        return;
+    }
+
+    if(function_def->type != AST_FUNCTION_DEF) {
+        fprintf(stderr, "'%s' is not a function\n", call->function_call.name);
+        return;
+    }
+
+    // 2. Create new scope for parameters
+    fprintf(stderr, "Creating new scope for function %s\n", call->function_call.name);
+    SymbolTable* func_scope = create_symbol_table(current_scope);
+
+    // 3. Process arguments and add to scope
+    if(call->function_call.arg_count != function_def->function_def.arg_count) {
+        fprintf(stderr, "Argument count mismatch for '%s'\n",
+                    call->function_call.name);
+        return;
+    }
+
+    for(size_t i=0; i<call->function_call.arg_count; i++) {
+        // Process argument expression
+        process_node(call->function_call.args[i], cs, func_scope);
+
+        // Get expected parameter type
+        //TypeInfo expected = function_def->function_def.args[i]->type_info;
+
+        // Add constraint: arg_type == param_type
+        //add_constraint(cs, call->function_call.args[i],
+        //              expected, call->function_call.args[i]->type_info);
+
+        // Add parameter to symbol table
+        fprintf(stderr, "Adding parameter %s to symbol table\n", function_def->function_def.args[i]);
+        symbol_table_add(func_scope,
+                        function_def->function_def.args[i],
+                        call->function_call.args[i]);
+    }
+
+    // 4. Process return type constraint
+    add_constraint(cs, call, &function_def->type_info);
+}
+
+void process_node(ASTNode* node, ConstraintSystem* cs, SymbolTable* current_scope) {
     switch(node->type) {
         case AST_BINARY_OP: {
             // Both operands must be numeric
@@ -139,6 +230,12 @@ void process_node(ASTNode* node, ConstraintSystem* cs) {
             lit->kind = TYPE_DOUBLE;
             lit->is_literal = true;
 
+            process_function_call(
+                node,
+                cs, 
+                current_scope
+            );
+
             add_constraint(cs, node, lit);
             break;
         }
@@ -149,8 +246,26 @@ void process_node(ASTNode* node, ConstraintSystem* cs) {
                 &node->function_def.body->type_info);
             break;
         }
-        case AST_VARIABLE: {break;}
-        case AST_VARIABLE_DEF: {break;}
+        case AST_VARIABLE: {
+            fprintf(stderr, "INFO - Found variable (name=%s) during constraint collection\n", node->variable.name);
+            ASTNode* variable_def = symbol_table_lookup(current_scope, node->variable.name);
+
+            if (!variable_def) {
+                fprintf(stderr,  "Undefined variable '%s'\n", node->variable.name);
+                break;
+            }
+
+            add_constraint(cs, node,
+                &variable_def->type_info);
+            break;
+        }
+        case AST_VARIABLE_DEF: {
+            symbol_table_add(current_scope, node->variable_def.name, node->variable_def.body);
+
+            add_constraint(cs, node,
+                &node->variable_def.body->type_info);
+            break;
+        }
         case AST_LET_IN: {break;}
         case AST_WHILE_LOOP: {break;}
 
@@ -350,30 +465,42 @@ void sa_block(ASTNode *node) {
     //free(main_body);
 }
 
-void _semantic_analysis(ASTNode *node, ConstraintSystem* cs) {
+void _semantic_analysis(ASTNode *node, ConstraintSystem* cs, SymbolTable* scope) {
     /* Anything read-only */
     // at this point, let-ins do not exist
     if (!node) return;
 
-    process_node(node, cs);
+    process_node(node, cs, scope);
 
     switch (node->type) {
         case AST_BLOCK: {
             fprintf(stderr, "INFO - Performing sem_anal into code block\n");
             // Recurse into new structure
             for (size_t i = 0; i < node->block.stmt_count; i++) {
-                _semantic_analysis(node->block.statements[i], cs);
+                _semantic_analysis(node->block.statements[i], cs, scope);
             }
             break;
         }
         case AST_FUNCTION_DEF: {
-            fprintf(stderr, "INFO - Performing sem_anal into %s\n", node->function_def.name);
-            _semantic_analysis(node->function_def.body, cs);
+            fprintf(stderr, "INFO - Performing sem_anal into function %s\n", node->function_def.name);
+            _semantic_analysis(node->function_def.body, cs, scope);
+            break;
+        }
+        case AST_FUNCTION_CALL: {
+            fprintf(stderr, "INFO - Performing sem_anal into function call %s\n", node->function_call.name);
+            for (size_t i = 0; i < node->block.stmt_count; i++) {
+                _semantic_analysis(node->function_call.args[i], cs, scope);
+            }
+            break;
+        }
+        case AST_VARIABLE_DEF: {
+            fprintf(stderr, "INFO - Performing sem_anal into variable %s\n", node->variable_def.name);
+            _semantic_analysis(node->variable_def.body, cs, scope);
             break;
         }
         case AST_BINARY_OP: {
-            _semantic_analysis(node->binary_op.left, cs);
-            _semantic_analysis(node->binary_op.right, cs);
+            _semantic_analysis(node->binary_op.left, cs, scope);
+            _semantic_analysis(node->binary_op.right, cs, scope);
             break;
         }
         default: {
@@ -389,9 +516,12 @@ bool semantic_analysis(ASTNode *node) {
             sa_block(node); // reorganize code in functions (transform the parent)
             node = transform_ast(node); // embrace FLATness (transform the children)
             ConstraintSystem cs = {NULL, 0, 0};
-            _semantic_analysis(node, &cs); // type checking (read-only)
-                                           //
+            SymbolTable* scope = create_symbol_table(NULL);
+            _semantic_analysis(node, &cs, scope); // type checking (read-only)
+            
             bool res = solve_constraints(&cs);
+            // DEBUG to see final types clearly
+            solve_constraints(&cs);
             return res;
         }
         default: {

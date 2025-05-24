@@ -1,1 +1,5 @@
-"good morning sirs" + 1;
+let a = 10;
+while (a) {
+    let a = 1 - 1;
+    print(a);
+};

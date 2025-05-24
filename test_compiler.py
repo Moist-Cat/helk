@@ -74,5 +74,23 @@ class TestCompiler(unittest.TestCase):
         expected = "\n".join(["-5.000000",])
         self.run_test("cond.hk", expected)
 
+    def test_unordered(self):
+        expected = "\n".join(["2.000000",])
+        self.run_test("unordered_declaration.hk", expected)
+
+    def test_unordered(self):
+        expected = "\n".join(["oo ee oo",])
+        self.run_test("hello_world.hk", expected)
+
+    def test_big_print(self):
+        # for you
+        expected = "\n".join(["hello world\n20.000000",])
+        self.run_test("big_print.hk", expected)
+
+    def test_string_type_inference(self):
+        # for you
+        expected = "\n".join(["blob\nhello",])
+        self.run_test("string_type_infer.hk", expected)
+
 if __name__ == "__main__":
     unittest.main()

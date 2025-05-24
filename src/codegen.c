@@ -67,9 +67,15 @@ static char* get_call_args(CodegenContext* ctx, ASTNode** args, unsigned int arg
     char* ptr = result;
 
     for (size_t i = 0; i < arg_count; i++) {
-        int written = sprintf(ptr, "double %s%s", temps[i], (i < arg_count-1) ? ", " : "");
+        int written;
+        if (args[i]->type_info.kind == TYPE_STRING) {
+            written = sprintf(ptr, "i8* @%s%s", temps[i], (i < arg_count-1) ? ", " : "");
+        }
+        else {
+            written = sprintf(ptr, "double %s%s", temps[i], (i < arg_count-1) ? ", " : "");
+        }
         ptr += written;
-        free(temps[i]);
+        //free(temps[i]);
     }
 
     free(temps);
@@ -85,7 +91,7 @@ static char* get_def_args(char** args, unsigned int arg_count) {
     // Generate code for all arguments first
     for (size_t i = 0; i < arg_count; i++) {
         temps[i] = args[i];
-        total_len += strlen(temps[i]) + 6; // XXX "double , " per argument
+        total_len += strlen(temps[i]) + 9; // XXX "double , " per argument
     }
 
     // Build arguments string
@@ -173,12 +179,25 @@ static char* gen_expr(CodegenContext* ctx, ASTNode* node) {
      * Everything here returns something (a temp variable)
      *
      */
-    char* temp = new_temp(ctx);
     
+    char* temp = new_temp(ctx);
+
     switch (node->type) {
         case AST_NUMBER:
             emit(ctx, "  %s = fadd double 0.000000e+00, %f\n", temp, node->number);
             return temp;
+        case AST_STRING: {
+            const char* var_temp = find_symbol(ctx, node->string);
+            if (!var_temp) {
+                fprintf(stderr, "ERROR - Undefined string '%s'\n", node->string);
+                return NULL;
+            }
+
+            //emit(ctx, "  %s = call double @prints(i8* @%s)\n", temp, var_temp);
+            free(temp);
+
+            return var_temp;
+        }
             
         case AST_BINARY_OP: {
             char* left = gen_expr(ctx, node->binary_op.left);
@@ -199,12 +218,17 @@ static char* gen_expr(CodegenContext* ctx, ASTNode* node) {
         }            
         case AST_VARIABLE: {
             const char* var_temp = find_symbol(ctx, node->variable.name);
+            if (node->type_info.kind == TYPE_STRING) {
+                // Strings are immutable
+                return var_temp;
+            }
             if (!var_temp) {
                 fprintf(stderr, "WARNING: Undefined variable '%s'\n", node->variable.name);
 
                 emit(ctx, "  %s = fadd double %s%s, 0.000000e+00  ; Load variable\n", temp, "%", node->variable.name);
                 return temp;
             }
+
             emit(ctx, "  %s = fadd double %s, 0.000000e+00 ; Load variable\n", temp, var_temp);
             return temp;
         }
@@ -213,12 +237,27 @@ static char* gen_expr(CodegenContext* ctx, ASTNode* node) {
             // since storing the value is handled by default
             // (we have to store whatever is inside in a temp anyway)
             // So we simply rename the variable.
-            char* value_temp = gen_expr(ctx, node->variable_def.body);
-            add_symbol(ctx, node->variable_def.name, value_temp);
-            emit(ctx, "  ; Variable assignment: %s = %s\n", 
-                node->variable_def.name, value_temp);
-            //free(value_temp);
             free(temp); // not needed
+            
+            char* value_temp = gen_expr(ctx, node->variable_def.body);
+            const char* var_temp = find_symbol(ctx, node->variable_def.name);
+            if (var_temp) {
+                fprintf(stderr, "INFO - Redefinition detected: %s", node->variable_def.name);
+                // XXX fails for strings
+                emit(
+                    ctx, "  %s = fadd double %s, 0.00000e+00 ; Variable redefiniton: %s = %s\n", 
+                    var_temp, value_temp,
+                    node->variable_def.name, value_temp
+                );
+                return var_temp;
+            }
+            else {
+                add_symbol(ctx, node->variable_def.name, value_temp);
+                emit(
+                    ctx, "  ; Variable assignment: %s = %s\n", 
+                    node->variable_def.name, value_temp
+                );
+            }
             return value_temp;
         }
 
@@ -250,20 +289,20 @@ static char* gen_expr(CodegenContext* ctx, ASTNode* node) {
         }
         case AST_BLOCK: {
             // Return zero by default
+            
             return codegen_expr_block(ctx, node);
-            //emit(ctx, "  %s = fadd double %f, 0.000000e+00\n", temp, ret_value);
-            //free(ret_value);
-            //return temp;
         }
-        default:
+        default: {
             fprintf(stderr, "Error: Failed to parse %d because it is not an expression! \n", node->type);
             free(temp);
             return NULL;
+        }
     }
 }
 
 void codegen_stmt(CodegenContext* ctx, ASTNode* node) {
     /* purely functional lang */
+
     switch (node->type) {
         case AST_FUNCTION_DEF: {
             // should ONLY contain functions after sem_anal
@@ -280,6 +319,7 @@ void codegen_stmt(CodegenContext* ctx, ASTNode* node) {
             }
             emit(ctx, "entry:\n");
             
+
             char* result = gen_expr(ctx, node->function_def.body);
             if (result) {
                 emit(ctx, "  ret double %s\n", result);
@@ -312,16 +352,101 @@ void codegen_block(CodegenContext* ctx, ASTNode* node) {
 static char* codegen_expr_block(CodegenContext* ctx, ASTNode* node) {
     /* We assume that whatever is inside this block is an expression */
     char* temp = NULL;
+
     for (size_t i = 0; i < node->block.stmt_count; i++) {
         // weeeeeeeeeeeeee memory leeeeeeeaks
         temp = gen_expr(ctx, node->block.statements[i]);
+        //if (i != node->block.stmt_count) {
+        //    free(temp);
+        //}
     }
     return temp;
+}
+
+void _codegen_declarations(CodegenContext* ctx, ASTNode *node) {
+    if (!node) {return;}
+
+    fprintf(stderr, "Collecting declarations for node_type=%d \n", node->type);
+
+    switch (node->type) {
+        case AST_BLOCK: {
+            for (size_t i = 0; i < node->block.stmt_count; i++) {
+                _codegen_declarations(ctx, node->block.statements[i]);
+            }
+            break;
+        }
+        case AST_STRING: {
+            char* escaped = node->string;
+            int length = strlen(escaped) + 1; // null-terminated
+            char* temp = new_label(ctx);
+            
+            emit(ctx, "@.str.%s = private unnamed_addr constant [%d x i8] c\"%s\\00\", align 1\n", temp, length, escaped);
+
+            
+            emit(ctx,
+                "@%s = alias i8, getelementptr inbounds ([%d x i8], [%d x i8]* @.str.%s, i64 0, i64 0)\n", temp, length, length, temp
+           );
+
+
+            add_symbol(ctx, escaped, temp);
+
+            free(temp);
+            break;
+        }
+        case AST_BINARY_OP: {
+            _codegen_declarations(ctx, node->binary_op.left);
+            _codegen_declarations(ctx, node->binary_op.right);
+            break;
+        }          
+        case AST_VARIABLE_DEF: {
+            _codegen_declarations(ctx, node->variable_def.body);
+            break;
+        }
+
+        case AST_FUNCTION_CALL: {
+            for (size_t i = 0; i < node->function_call.arg_count; i++) {
+                _codegen_declarations(ctx, node->function_call.args[i]);
+            }
+            break;
+        }
+        case AST_FUNCTION_DEF: {
+            _codegen_declarations(ctx, node->function_def.body);
+            break;
+
+            // NOTE not needed
+            unsigned int arg_count = node->function_def.arg_count;
+
+            char* def_args = get_def_args(node->function_def.args, arg_count);
+
+            if (arg_count > 0) {
+                emit(ctx, "\ndeclare double @%s(%s)\n", node->function_def.name, def_args);
+            }
+            else {
+                emit(ctx, "\ndeclare double @%s()\n", node->function_def.name);
+            }
+        }
+        default: {
+            break;         
+        }
+
+    }
+}
+
+void codegen_declarations(CodegenContext* ctx, ASTNode *root) {
+    emit(ctx, "; ModuleID = 'memelang'\n");
+    emit(ctx, "declare double @print(double)\n");
+    emit(ctx, "declare double @prints(i8* nocapture) nounwind\n");
+
+    _codegen_declarations(ctx, root);
+    emit(ctx, "\n");
 }
 
 void codegen(CodegenContext* ctx, ASTNode* node) {
     // only statement blocks for now
     fprintf(stderr, "INFO - Generating LLVM IR code\n");
+
+    codegen_declarations(ctx, node);
+
     switch (node->type) {
         case AST_BLOCK: {
             codegen_block(ctx, node);
@@ -338,12 +463,6 @@ void codegen_init(CodegenContext* ctx, FILE* output) {
     ctx->temp_counter = 0;
     ctx->symbols = NULL;
     ctx->symbols_size = 0;
-    emit(ctx, "; ModuleID = 'memelang'\n");
-    emit(ctx, "declare double @print(double)\n");
-
-    // Fill in the rest of the declarations right here
-    // explore the AST and codegen all decls (functions, strings, ...)
-    emit(ctx, "\n");
 }
 
 void codegen_cleanup(CodegenContext* ctx) {
