@@ -147,10 +147,13 @@ static char* gen_while_loop(CodegenContext* ctx, ASTNode* node) {
 
 
 static char* gen_conditional(CodegenContext* ctx, ASTNode* node) {
-    char* hyp_temp = gen_expr(ctx, node->conditional.hypothesis);
     char* thesis_label = new_label(ctx);
     char* anti_label = new_label(ctx);
     char* merge_label = new_label(ctx);
+
+    char* hyp_temp = gen_expr(ctx, node->conditional.hypothesis);
+    char* thesis_temp = gen_expr(ctx, node->conditional.thesis);
+    char* anti_temp = gen_expr(ctx, node->conditional.antithesis);
 
     // Compare condition to 0 (false)
     emit(ctx, "  %%cond%d = fcmp one double %s, 0.000000e+00\n", ctx->temp_counter++, hyp_temp);
@@ -159,12 +162,10 @@ static char* gen_conditional(CodegenContext* ctx, ASTNode* node) {
 
     // Thesis block
     emit(ctx, "%s:\n", thesis_label);
-    char* thesis_temp = gen_expr(ctx, node->conditional.thesis);
     emit(ctx, "  br label %%%s\n\n", merge_label);
 
     // Antithesis block
     emit(ctx, "%s:\n", anti_label);
-    char* anti_temp = gen_expr(ctx, node->conditional.antithesis);
     emit(ctx, "  br label %%%s\n\n", merge_label);
 
     // Merge point
