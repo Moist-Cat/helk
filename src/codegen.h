@@ -13,6 +13,7 @@ typedef struct {
     FILE* output;
     int temp_counter;
     int label_counter;
+    int _last_merge; // required for nested ifs
     Symbol* symbols;
     size_t symbols_size;
 } CodegenContext;

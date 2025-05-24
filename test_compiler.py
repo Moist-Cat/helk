@@ -137,6 +137,14 @@ class TestCompiler(unittest.TestCase):
         )
         self.run_test("iff.hk", expected)
 
+    def test_iff(self):
+        expected = "\n".join(
+            [
+                "-3.000000",
+            ]
+        )
+        self.run_test("iff_real.hk", expected)
+
     def test_nontrivial(self):
         expected = "\n".join(
             ["We made this many iterations:\n9.000000\nFinal value of b:\n5.000000"]

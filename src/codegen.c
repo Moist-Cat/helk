@@ -147,6 +147,8 @@ static char* gen_while_loop(CodegenContext* ctx, ASTNode* node) {
 
 
 static char* gen_conditional(CodegenContext* ctx, ASTNode* node) {
+    int _last_merge = ctx->_last_merge;
+
     char* thesis_label = new_label(ctx);
     int thesis_cnt = ctx->label_counter - 1;
 
@@ -154,6 +156,7 @@ static char* gen_conditional(CodegenContext* ctx, ASTNode* node) {
     int anti_cnt = ctx->label_counter - 1;
 
     char* merge_label = new_label(ctx);
+    int merge_cnt = ctx->label_counter - 1;
 
     char* hyp_temp = gen_expr(ctx, node->conditional.hypothesis);
 
@@ -167,12 +170,11 @@ static char* gen_conditional(CodegenContext* ctx, ASTNode* node) {
     char* thesis_temp = gen_expr(ctx, node->conditional.thesis);
     emit(ctx, "  br label %%%s\n\n", merge_label);
 
-    // the last label might have changed
-    // we substract two since we generated the
-    // merge point and the antithesis 
-    if (thesis_cnt != ctx->label_counter - 3) {
+    // the merge point might have changed so we have to check
+    if (_last_merge != ctx->_last_merge) {
         fprintf(stderr, "blob %d %d\n", ctx->label_counter, thesis_cnt);
-        thesis_cnt = ctx->label_counter - 1;
+        thesis_cnt = ctx->_last_merge;
+        _last_merge = ctx->_last_merge;
     }
 
     // Antithesis block
@@ -180,9 +182,11 @@ static char* gen_conditional(CodegenContext* ctx, ASTNode* node) {
     char* anti_temp = gen_expr(ctx, node->conditional.antithesis);
     emit(ctx, "  br label %%%s\n\n", merge_label);
 
-    // Verify if we generated new labels inside the antithesis
-    if ((anti_cnt != ctx->label_counter - 2) && (thesis_cnt != ctx->label_counter - 1)) {
-        anti_cnt = ctx->label_counter - 1;
+    // Verify if we generated a new merge point inside the antithesis
+    if (_last_merge != ctx->_last_merge) {
+        fprintf(stderr, "blob %d %d\n", ctx->label_counter, anti_cnt);
+        anti_cnt = ctx->_last_merge;
+        _last_merge = ctx->_last_merge;
     }
 
     // Merge point
@@ -196,6 +200,8 @@ static char* gen_conditional(CodegenContext* ctx, ASTNode* node) {
     free(hyp_temp);
     free(thesis_temp);
     free(anti_temp);
+
+    ctx->_last_merge = merge_cnt;
 
     return result_temp;
 }
@@ -510,6 +516,7 @@ void codegen_init(CodegenContext* ctx, FILE* output) {
     ctx->output = output;
     ctx->temp_counter = 0;
     ctx->label_counter = 0;
+    ctx->_last_merge = 0;
     ctx->symbols = NULL;
     ctx->symbols_size = 0;
 }
