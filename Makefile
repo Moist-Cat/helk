@@ -57,7 +57,7 @@ build/comp: ${OBJECTS}
 	chmod 700 $@
 
 build: build/comp
-compile: build
+compile: build hulk
 	./hulk/comp script.hulk > ./hulk/script.ll
 
 build_dir:
