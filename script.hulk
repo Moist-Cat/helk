@@ -1,12 +1,14 @@
 let a = 5;
-let b = 5;
+let b = 50;
 
-let x = if (a - b + 1 - 1) {
-    let tmp = if (a - a) { a * 2; } else {a * 10;};
-    tmp + 5;
-} else {
-    let y = if (0) {if (1) {5;} else {2;};} else {7;};
-    y - 10;
+let x = 10;
+
+while (min(max(b - a, 0), 1)) {
+    let x = x - 1;
+    let b = b - a;
 };
 
-print(x);
+prints("We made this many iterations:");
+print(10 - x);
+prints("Final value of b:");
+print(b);

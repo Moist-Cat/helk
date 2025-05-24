@@ -30,6 +30,14 @@ static char* to_str_ptr(const char* name) {
     return temp;
 }
 
+static char* new_arg(const char* name) {
+    char* temp = malloc(17);
+    sprintf(temp, "%%%s", name);
+
+    return temp;
+
+}
+
 static void add_symbol(CodegenContext* ctx, const char* name, const char* temp) {
     // Check for existing symbol
     for (size_t i = 0; i < ctx->symbols_size; i++) {
@@ -43,7 +51,12 @@ static void add_symbol(CodegenContext* ctx, const char* name, const char* temp) 
     ctx->symbols = realloc(ctx->symbols, (ctx->symbols_size + 1) * sizeof(Symbol));
     ctx->symbols[ctx->symbols_size] = (Symbol){
         .name = strdup(name),
-        .temp = strdup(temp)
+        .temp = strdup(temp), // this changes after a redefinition
+        .previous_label_name = strdup(temp),
+        .phi = strdup(temp),
+        .label = ctx->label_counter - 1, // this too
+        .previous_label = ctx->label_counter - 1
+        // we use previous_* to identify and restore inconsitencies
     };
     ctx->symbols_size++;
 }
@@ -55,6 +68,28 @@ static const char* find_symbol(CodegenContext* ctx, const char* name) {
         }
     }
     return NULL;
+}
+
+Symbol* fetch_symbol(CodegenContext* ctx, const char* name) {
+    for (size_t i = 0; i < ctx->symbols_size; i++) {
+        if (strcmp(ctx->symbols[i].name, name) == 0) {
+            return &ctx->symbols[i];
+        }
+    }
+    return NULL;
+}
+
+void fix_labels(CodegenContext* ctx) {
+    /*
+     * Values modified inside loops do not persist
+     */
+    for (size_t i = 0; i < ctx->symbols_size; i++) {
+        if (ctx->symbols[i].label  != ctx->symbols[i].previous_label) {
+            fprintf(stderr, "INFO - Fixing redefinition of %s after exiting loop", ctx->symbols[i].name);
+            free(ctx->symbols[i].temp);
+            ctx->symbols[i].temp = strdup(ctx->symbols[i].previous_label_name);
+        }
+    }
 }
 
 static char* get_call_args(CodegenContext* ctx, ASTNode** args, unsigned int arg_count) {
@@ -82,7 +117,6 @@ static char* get_call_args(CodegenContext* ctx, ASTNode** args, unsigned int arg
             written = sprintf(ptr, "double %s%s", temps[i], (i < arg_count-1) ? ", " : "");
         }
         ptr += written;
-        //free(temps[i]);
     }
 
     free(temps);
@@ -115,26 +149,24 @@ static char* get_def_args(char** args, unsigned int arg_count) {
 }
 
 static char* gen_while_loop(CodegenContext* ctx, ASTNode* node) {
-    char* cond_label = new_label(ctx);
     char* body_label = new_label(ctx);
-    char* end_label = new_label(ctx);
 
     // Initial unconditional branch to condition
-    emit(ctx, "  br label %%%s\n", cond_label);
+    emit(ctx, "  br label %%%s\n", body_label);
+
+    // Body block
+    emit(ctx, "%s:\n", body_label);
+    gen_redefs(ctx, node->while_loop.body);
+    char* body_temp = gen_expr(ctx, node->while_loop.body);
+    free(body_temp);
 
     // Condition block
-    emit(ctx, "%s:\n", cond_label);
     char* cond_temp = gen_expr(ctx, node->while_loop.cond);
+    char* end_label = new_label(ctx);
     emit(ctx, "  %%while_cond = fcmp one double %s, 0.000000e+00\n", cond_temp);
     emit(ctx, "  br i1 %%while_cond, label %%%s, label %%%s\n",
         body_label, end_label);
     free(cond_temp);
-
-    // Body block
-    emit(ctx, "%s:\n", body_label);
-    char* body_temp = gen_expr(ctx, node->while_loop.body);
-    free(body_temp);
-    emit(ctx, "  br label %%%s\n", cond_label);  // Loop back
 
     // End block
     emit(ctx, "%s:\n", end_label);
@@ -212,11 +244,11 @@ static char* gen_expr(CodegenContext* ctx, ASTNode* node) {
      * Everything here returns something (a temp variable)
      *
      */
-    
-    char* temp = new_temp(ctx);
+    char* temp;
 
     switch (node->type) {
         case AST_NUMBER:
+            temp = new_temp(ctx);
             emit(ctx, "  %s = fadd double 0.000000e+00, %f\n", temp, node->number);
             return temp;
         case AST_STRING: {
@@ -225,8 +257,6 @@ static char* gen_expr(CodegenContext* ctx, ASTNode* node) {
                 fprintf(stderr, "ERROR - Undefined string '%s'\n", node->string);
                 return NULL;
             }
-
-            free(temp);
 
             return var_temp;
         }
@@ -243,42 +273,34 @@ static char* gen_expr(CodegenContext* ctx, ASTNode* node) {
                 case OP_DIV: op = "fdiv"; break;
             }
             
+
+            temp = new_temp(ctx);
             emit(ctx, "  %s = %s double %s, %s\n", temp, op, left, right);
-            free(left);
-            free(right);
+ 
+            //free(left);  // variable (const str)!
+            //free(right);
             return temp;
         }            
         case AST_VARIABLE: {
             const char* var_temp = find_symbol(ctx, node->variable.name);
-            const char* type;
-            if (node->type_info.kind == TYPE_STRING) {
-                type = "i8*";
-            }
-            else {
-                type = "double";
-            }
-
             if (!var_temp) {
-                fprintf(stderr, "WARNING: Undefined variable '%s'\n", node->variable.name);
-
-                emit(ctx, "  %s = fadd double %s%s, 0.000000e+00  ; Load variable\n", temp, "%", node->variable.name);
-                return temp;
+                fprintf(stderr, "Could not find symbol! %s", node->variable.name);
+                return new_arg(node->variable.name);
             }
-
-            emit(ctx, "  %s = load %s, %s* %s\n", temp, type, type, var_temp);
-            return temp;
+            emit(ctx, "  ; Load variable %s\n", node->variable.name);
+            return var_temp;
         }
         case AST_VARIABLE_DEF: {
             // notice that we perform NO operation here
             // since storing the value is handled by default
             // (we have to store whatever is inside in a temp anyway)
             // So we simply rename the variable.
-            free(temp); // not needed
 
-            char* value_temp = gen_expr(ctx, node->variable_def.body);
-            const char* var_temp = find_symbol(ctx, node->variable_def.name);
+            Symbol* symbol = fetch_symbol(ctx, node->variable_def.name);
             const char* type;
-            char* var_ptr;
+            char* t4;
+
+            char* temp_ptr;
 
             if (node->type_info.kind == TYPE_STRING) {
                 type = "i8*";
@@ -287,26 +309,28 @@ static char* gen_expr(CodegenContext* ctx, ASTNode* node) {
                 type = "double";
             }
 
-            if (var_temp) {
-                fprintf(stderr, "INFO - Redefinition detected: %s", node->variable_def.name);
-                var_ptr = var_temp;
-                emit(
-                    ctx, "  ; Variable redefiniton: %s = %s\n", 
-                    var_temp, value_temp,
-                    node->variable_def.name, value_temp
-                );
+            if (symbol) {
+                if (symbol->label == ctx->label_counter - 1) {
+                    fprintf(stderr, "WARNING - Invalid redefinition detected. No operation was made\n");
+                    return symbol->name;
+                }
+                t4 = gen_expr(ctx, node->variable_def.body);
+
+                // no-op to make t3 = t4 since we don't know how many operations we will make
+                emit(ctx, "  %s = fadd double %s, 0.000000e+00  ; Load variable\n", symbol->phi, t4);
+
+                symbol->temp = symbol->phi;
+                // do not free anything here
             }
             else {
-                var_ptr = new_temp(ctx);
-                add_symbol(ctx, node->variable_def.name, var_ptr);
+                t4 = gen_expr(ctx, node->variable_def.body);
+                add_symbol(ctx, node->variable_def.name, t4);
                 emit(
                     ctx, "  ; Variable assignment: %s = %s\n", 
-                    node->variable_def.name, value_temp
+                    node->variable_def.name, t4
                 );
-                emit(ctx, "  %s = alloca %s\n", var_ptr, type);
             }
-            emit(ctx, "  store %s %s, %s* %s\n", type, value_temp, type, var_ptr);
-            return value_temp;
+            return t4;
         }
 
         case AST_FUNCTION_CALL: {
@@ -328,11 +352,9 @@ static char* gen_expr(CodegenContext* ctx, ASTNode* node) {
             return temp;
         }
         case AST_CONDITIONAL: {
-            free(temp);
             return gen_conditional(ctx, node);
         }
         case AST_WHILE_LOOP: {
-            free(temp);
             return gen_while_loop(ctx, node);
         }
         case AST_BLOCK: {
@@ -342,8 +364,106 @@ static char* gen_expr(CodegenContext* ctx, ASTNode* node) {
         }
         default: {
             fprintf(stderr, "Error: Failed to parse %d because it is not an expression! \n", node->type);
-            free(temp);
             return NULL;
+        }
+    }
+}
+
+void gen_redefs(CodegenContext* ctx, ASTNode* node) {
+    /* Generate phi for the redefinition
+     *
+     */
+    
+    switch (node->type) {
+        case AST_BINARY_OP: {
+            gen_redefs(ctx, node->binary_op.left);
+            gen_redefs(ctx, node->binary_op.right);
+            break;
+        }            
+        case AST_VARIABLE_DEF: {
+            // notice that we perform NO operation here
+            // since storing the value is handled by default
+            // (we have to store whatever is inside in a temp anyway)
+            // So we simply rename the variable.
+
+            Symbol* symbol = fetch_symbol(ctx, node->variable_def.name);
+            const char* type;
+            char* t4;
+
+            char* temp_ptr;
+
+            if (node->type_info.kind == TYPE_STRING) {
+                type = "i8*";
+            }
+            else {
+                type = "double";
+            }
+
+            if (symbol) {
+                fprintf(stderr, "INFO - Redefinition detected: %s\n", node->variable_def.name);
+                // https://www.cs.utexas.edu/~pingali/CS380C/2010/papers/ssaCytron.pdf
+                //
+                // I notice that the value was already defined
+                // I have the assignment in hand (let's say is %t1)
+                // If the label corresponding to the assigned value and our own are
+                // the same, simply discard the previous label
+                // If it's not the case, generate two labels one for the phi (since the value of
+                // the variable could come either from the previous label or our own)
+                // and
+                // %t2 = phi(%t1, %t3)
+                // %t3 = %t2 + 1
+                // save %t3 in the symbol table
+
+                // If we didn't define a new label
+                // Then this becomes a no-op
+                if (symbol->label == ctx->label_counter - 1) {
+                    fprintf(stderr, "WARNING - Invalid redefinition detected. No operation was made\n");
+                    return;
+                }
+                // different labels
+                emit(
+                    ctx, "  ; Variable redefiniton: %s\n", 
+                    node->variable_def.name
+                );
+
+                char* t1 = symbol->temp;
+                char* t2 = new_temp(ctx);
+                char* t3 = new_temp(ctx);
+
+                emit(
+                    ctx,
+                    "  %s = phi %s [%s, %%l%d], [%s, %%l%d]\n",
+                    t2, type, t1, symbol->label, t3, ctx->label_counter - 1
+                );
+
+                // probably uses the variable (or another variable, recall the gcd algorithm)
+                // Whenever "a" is searched in the symbol table, it will appear as t2
+                symbol->temp = t2;
+
+                // we are forced to defer the operation
+                symbol->phi = t3;
+                // do not free anything here
+            }
+            break;
+        }
+
+        case AST_CONDITIONAL: {
+            // XXX
+            break;
+        }
+        case AST_WHILE_LOOP: {
+            // not my problem
+            break;
+        }
+        case AST_BLOCK: {
+            // Return zero by defaul
+            for (size_t i = 0; i < node->block.stmt_count; i++) {
+                gen_redefs(ctx, node->block.statements[i]);
+            }
+            break;
+        }
+        default: {
+            return;
         }
     }
 }
@@ -358,6 +478,7 @@ void codegen_stmt(CodegenContext* ctx, ASTNode* node) {
             unsigned int arg_count = node->function_def.arg_count;
 
             char* def_args = get_def_args(node->function_def.args, arg_count);
+            char* entry_label = new_label(ctx);
 
             if (arg_count > 0) {
                 emit(ctx, "\ndefine double @%s(%s) {\n", node->function_def.name, def_args);
@@ -365,7 +486,7 @@ void codegen_stmt(CodegenContext* ctx, ASTNode* node) {
             else {
                 emit(ctx, "\ndefine double @%s() {\n", node->function_def.name);
             }
-            emit(ctx, "entry:\n");
+            emit(ctx, "%s:\n", entry_label);
             
 
             char* result = gen_expr(ctx, node->function_def.body);
@@ -404,9 +525,6 @@ static char* codegen_expr_block(CodegenContext* ctx, ASTNode* node) {
     for (size_t i = 0; i < node->block.stmt_count; i++) {
         // weeeeeeeeeeeeee memory leeeeeeeaks
         temp = gen_expr(ctx, node->block.statements[i]);
-        //if (i != node->block.stmt_count) {
-        //    free(temp);
-        //}
     }
     return temp;
 }
@@ -440,7 +558,6 @@ void _codegen_declarations(CodegenContext* ctx, ASTNode *node) {
 
             add_symbol(ctx, escaped, str_ptr);
 
-            free(temp);
             free(str_ptr);
             break;
         }

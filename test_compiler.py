@@ -157,6 +157,12 @@ class TestCompiler(unittest.TestCase):
         )
         self.run_test("fib.hk", expected)
 
+    def test_while(self):
+        expected = "\n".join(
+            ["4.000000\n3.000000\n2.000000\n1.000000\n0.000000"]
+        )
+        self.run_test("while.hk", expected)
+
 
 if __name__ == "__main__":
     unittest.main()
