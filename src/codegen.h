@@ -12,6 +12,7 @@ typedef struct {
 typedef struct {
     FILE* output;
     int temp_counter;
+    int label_counter;
     Symbol* symbols;
     size_t symbols_size;
 } CodegenContext;

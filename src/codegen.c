@@ -19,7 +19,7 @@ static char* new_temp(CodegenContext* ctx) {
 
 static char* new_label(CodegenContext* ctx) {
     char* temp = malloc(16);
-    sprintf(temp, "l%d", ctx->temp_counter++);
+    sprintf(temp, "l%d", ctx->label_counter++);
     return temp;
 }
 
@@ -148,12 +148,14 @@ static char* gen_while_loop(CodegenContext* ctx, ASTNode* node) {
 
 static char* gen_conditional(CodegenContext* ctx, ASTNode* node) {
     char* thesis_label = new_label(ctx);
+    int thesis_cnt = ctx->label_counter - 1;
+
     char* anti_label = new_label(ctx);
+    int anti_cnt = ctx->label_counter - 1;
+
     char* merge_label = new_label(ctx);
 
     char* hyp_temp = gen_expr(ctx, node->conditional.hypothesis);
-    char* thesis_temp = gen_expr(ctx, node->conditional.thesis);
-    char* anti_temp = gen_expr(ctx, node->conditional.antithesis);
 
     // Compare condition to 0 (false)
     emit(ctx, "  %%cond%d = fcmp one double %s, 0.000000e+00\n", ctx->temp_counter++, hyp_temp);
@@ -162,17 +164,34 @@ static char* gen_conditional(CodegenContext* ctx, ASTNode* node) {
 
     // Thesis block
     emit(ctx, "%s:\n", thesis_label);
+    char* thesis_temp = gen_expr(ctx, node->conditional.thesis);
     emit(ctx, "  br label %%%s\n\n", merge_label);
+
+    // the last label might have changed
+    // we substract two since we generated the
+    // merge point and the antithesis 
+    if (thesis_cnt != ctx->label_counter - 3) {
+        fprintf(stderr, "blob %d %d\n", ctx->label_counter, thesis_cnt);
+        thesis_cnt = ctx->label_counter - 1;
+    }
 
     // Antithesis block
     emit(ctx, "%s:\n", anti_label);
+    char* anti_temp = gen_expr(ctx, node->conditional.antithesis);
     emit(ctx, "  br label %%%s\n\n", merge_label);
+
+    // Verify if we generated new labels inside the antithesis
+    if ((anti_cnt != ctx->label_counter - 2) && (thesis_cnt != ctx->label_counter - 1)) {
+        anti_cnt = ctx->label_counter - 1;
+    }
 
     // Merge point
     emit(ctx, "%s:\n", merge_label);
     char* result_temp = new_temp(ctx);
-    emit(ctx, "  %s = phi double [ %s, %%%s ], [ %s, %%%s ]\n",
-        result_temp, thesis_temp, thesis_label, anti_temp, anti_label);
+    //emit(ctx, "  %s = phi double [ %s, %%%s ], [ %s, %%%s ]\n",
+    //    result_temp, thesis_temp, thesis_label, anti_temp, anti_label);
+    emit(ctx, "  %s = phi double [ %s, %%l%d ], [ %s, %%l%d ]\n",
+        result_temp, thesis_temp, thesis_cnt, anti_temp, anti_cnt);
 
     free(hyp_temp);
     free(thesis_temp);
@@ -460,6 +479,9 @@ void _codegen_declarations(CodegenContext* ctx, ASTNode *node) {
 
 void codegen_declarations(CodegenContext* ctx, ASTNode *root) {
     emit(ctx, "; ModuleID = 'memelang'\n");
+    emit(ctx, "declare double @max(double, double)\n");
+    emit(ctx, "declare double @min(double, double)\n");
+
     emit(ctx, "declare double @print(double)\n");
     emit(ctx, "declare double @prints(i8* nocapture) nounwind\n");
 
@@ -487,6 +509,7 @@ void codegen(CodegenContext* ctx, ASTNode* node) {
 void codegen_init(CodegenContext* ctx, FILE* output) {
     ctx->output = output;
     ctx->temp_counter = 0;
+    ctx->label_counter = 0;
     ctx->symbols = NULL;
     ctx->symbols_size = 0;
 }

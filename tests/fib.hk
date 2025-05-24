@@ -1,0 +1,9 @@
+function fib(n) => 
+    if (min(max(n - 2, 0), 1)) {
+        fib(n - 1) + fib(n - 2);
+    }
+    else {
+        1;
+    };
+
+print(fib(10));

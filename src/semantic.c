@@ -85,7 +85,6 @@ SymbolTable* create_symbol_table(SymbolTable* parent) {
         // init builtins
         char **pargs = malloc(sizeof(char*)*1);
         pargs[0] = "[print_param_1]";
-
         ASTNode* print = create_ast_function_def("print", NULL, pargs, 1);
         print->type_info.kind = TYPE_DOUBLE;
         symbol_table_add(st, "print", print);
@@ -95,6 +94,20 @@ SymbolTable* create_symbol_table(SymbolTable* parent) {
         ASTNode* prints = create_ast_function_def("prints", NULL, psargs, 1);
         prints->type_info.kind = TYPE_DOUBLE;
         symbol_table_add(st, "prints", prints);
+
+        char **maxargs = malloc(sizeof(char*)*2);
+        maxargs[0] = "[max_param_1]";
+        maxargs[1] = "[max_param_2]";
+        ASTNode* maxima = create_ast_function_def("max", NULL, maxargs, 2);
+        maxima->type_info.kind = TYPE_DOUBLE;
+        symbol_table_add(st, "max", maxima);
+
+        char **minargs = malloc(sizeof(char*)*2);
+        psargs[0] = "[min_param_1]";
+        psargs[1] = "[min_param_2]";
+        ASTNode* minima = create_ast_function_def("min", NULL, minargs, 2);
+        minima->type_info.kind = TYPE_DOUBLE;
+        symbol_table_add(st, "min", minima);
     }
 
     return st;
@@ -336,18 +349,6 @@ static FlattenResult flatten(ASTNode* node) {
             break;
         }
 
-        case AST_BINARY_OP: {
-            FlattenResult left = flatten(node->binary_op.left);
-            FlattenResult right = flatten(node->binary_op.right);
-            append_stmts(&res, left.stmts, left.stmt_count);
-            append_stmts(&res, right.stmts, right.stmt_count);
-            res.expr = create_ast_binary_op(left.expr, right.expr, node->binary_op.op);
-            break;
-        }
-        case AST_FUNCTION_DEF: {
-            flatten(node->function_def.body);
-        }
-
         default:
             res.expr = node;
             break;
@@ -392,6 +393,13 @@ ASTNode* transform_ast(ASTNode* node) {
             free(node);
 
             node = new_block;
+            break;
+        }
+        case AST_CONDITIONAL: {
+            node->conditional.hypothesis = transform_ast(node->conditional.hypothesis);
+            node->conditional.thesis = transform_ast(node->conditional.thesis);
+            node->conditional.antithesis = transform_ast(node->conditional.antithesis);
+
             break;
         }
 

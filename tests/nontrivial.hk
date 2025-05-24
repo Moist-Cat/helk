@@ -1,0 +1,14 @@
+let a = 5;
+let b = 50;
+
+let x = 10;
+
+while (min(max(b - a, 0), 1)) {
+    let x = x - 1;
+    let b = b - a;
+};
+
+prints("We made this many iterations:");
+print(10 - x);
+prints("Final value of b:");
+print(b);

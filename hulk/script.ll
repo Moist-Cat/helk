@@ -1,4 +1,6 @@
 ; ModuleID = 'memelang'
+declare double @max(double, double)
+declare double @min(double, double)
 declare double @print(double)
 declare double @prints(i8* nocapture) nounwind
 
@@ -13,55 +15,55 @@ entry:
   ; Variable assignment: b = %t5
   %t6 = alloca double
   store double %t5, double* %t6
-  %t13 = load double, double* %t3
-  %t15 = load double, double* %t6
-  %t16 = fadd double 0.000000e+00, 1.000000
-  %t14 = fadd double %t15, %t16
-  %t12 = fsub double %t13, %t14
+  %t10 = load double, double* %t3
+  %t12 = load double, double* %t6
+  %t13 = fadd double 0.000000e+00, 1.000000
+  %t11 = fadd double %t12, %t13
+  %t9 = fsub double %t10, %t11
+  %cond14 = fcmp one double %t9, 0.000000e+00
+  br i1 %cond14, label %l0, label %l1
+
+l0:
+  %t19 = load double, double* %t3
+  %t20 = load double, double* %t3
+  %t18 = fsub double %t19, %t20
+  %cond21 = fcmp one double %t18, 0.000000e+00
+  br i1 %cond21, label %l3, label %l4
+
+l3:
   %t24 = load double, double* %t3
-  %t25 = load double, double* %t3
-  %t23 = fsub double %t24, %t25
+  %t25 = fadd double 0.000000e+00, 2.000000
+  %t23 = fmul double %t24, %t25
+  br label %l5
+
+l4:
   %t28 = load double, double* %t3
-  %t29 = fadd double 0.000000e+00, 2.000000
+  %t29 = fadd double 0.000000e+00, 10.000000
   %t27 = fmul double %t28, %t29
-  %t32 = load double, double* %t3
-  %t33 = fadd double 0.000000e+00, 10.000000
-  %t31 = fmul double %t32, %t33
-  %cond34 = fcmp one double %t23, 0.000000e+00
-  br i1 %cond34, label %l20, label %l21
+  br label %l5
 
-l20:
-  br label %l22
+l5:
+  %t30 = phi double [ %t23, %l3 ], [ %t27, %l4 ]
+  ; Variable assignment: tmp = %t30
+  %t31 = alloca double
+  store double %t30, double* %t31
+  %t33 = load double, double* %t31
+  %t34 = fadd double 0.000000e+00, 5.000000
+  %t32 = fadd double %t33, %t34
+  br label %l2
 
-l21:
-  br label %l22
+l1:
+  %t37 = load double, double* %t6
+  %t38 = fadd double 0.000000e+00, 10.000000
+  %t36 = fsub double %t37, %t38
+  br label %l2
 
-l22:
-  %t35 = phi double [ %t27, %l20 ], [ %t31, %l21 ]
-  ; Variable assignment: tmp = %t35
-  %t36 = alloca double
-  store double %t35, double* %t36
-  %t38 = load double, double* %t36
-  %t39 = fadd double 0.000000e+00, 5.000000
-  %t37 = fadd double %t38, %t39
-  %t42 = load double, double* %t6
-  %t43 = fadd double 0.000000e+00, 10.000000
-  %t41 = fsub double %t42, %t43
-  %cond44 = fcmp one double %t12, 0.000000e+00
-  br i1 %cond44, label %l9, label %l10
-
-l9:
-  br label %l11
-
-l10:
-  br label %l11
-
-l11:
-  %t45 = phi double [ %t37, %l9 ], [ %t41, %l10 ]
-  ; Variable assignment: x = %t45
-  %t46 = alloca double
-  store double %t45, double* %t46
-  %t49 = load double, double* %t46
-  %t48 = call double @print(double %t49)
-  ret double %t48
+l2:
+  %t39 = phi double [ %t32, %l5 ], [ %t36, %l1 ]
+  ; Variable assignment: x = %t39
+  %t40 = alloca double
+  store double %t39, double* %t40
+  %t43 = load double, double* %t40
+  %t42 = call double @print(double %t43)
+  ret double %t42
 }
