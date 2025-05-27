@@ -28,16 +28,6 @@ bool solve_constraints(ConstraintSystem* cs) {
 
             fprintf(stderr, "Expected: %d ; Actual: %d ; Node: %d\n\n", expected, actual, c->node->type);
 
-            // Handle literals first
-            if(c->node->type_info.is_literal) {
-                if(expected != TYPE_UNKNOWN &&
-                   expected != actual) {
-                    fprintf(stderr, "ERROR - Literal type mismatch\n");
-                    return false;
-                }
-                continue;
-            }
-
             // Propagate concrete -> unknown
             if(expected != TYPE_UNKNOWN &&
                actual == TYPE_UNKNOWN) {
@@ -402,7 +392,11 @@ ASTNode* transform_ast(ASTNode* node) {
 
             break;
         }
-
+        case AST_WHILE_LOOP: {
+            node->while_loop.cond = transform_ast(node->while_loop.cond);
+            node->while_loop.body = transform_ast(node->while_loop.body);
+            break;
+        }
         default:
             break;
 

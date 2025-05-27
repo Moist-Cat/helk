@@ -1,0 +1,12 @@
+function gcd(a, b) => while (min(max(a, 0), 1)) {
+    if (1) {
+        let m = a - b;
+        let b = a;
+        let a = m;
+    }
+    else {
+        0;
+    };
+};
+
+print(gcd(10, 2));
