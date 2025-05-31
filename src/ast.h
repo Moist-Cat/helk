@@ -18,6 +18,8 @@ typedef enum {
 
 typedef struct {
     TypeKind kind;
+    char* name; // what to print
+    char* cls; // ...
     unsigned int is_literal;
 } TypeInfo;
 
@@ -32,7 +34,13 @@ typedef enum {
     AST_VARIABLE_DEF,
     AST_LET_IN,
     AST_CONDITIONAL,
-    AST_WHILE_LOOP
+    AST_WHILE_LOOP,
+    AST_TYPE_DEF,
+    AST_METHOD_DEF,
+    AST_CONSTRUCTOR,
+    AST_FIELD_DEF,
+    AST_FIELD_ACCESS,
+    AST_METHOD_CALL
 } ASTNodeType;
 
 typedef struct ASTNode {
@@ -42,6 +50,14 @@ typedef struct ASTNode {
     union {
         double number;
         char* string;
+        struct {
+            char* name;
+            char* base_type; // NULL if no inheritance
+            struct ASTNode** fields;
+            unsigned int field_count;
+            struct ASTNode** methods; // Array of AST_FUNCTION_DEF nodes
+            unsigned int method_count;
+        } type_decl;
         struct {
             struct ASTNode *left;
             struct ASTNode *right;
@@ -85,6 +101,26 @@ typedef struct ASTNode {
             struct ASTNode* cond;
             struct ASTNode* body;
         } while_loop;
+        struct {
+            char* cls;
+            struct ASTNode** args;
+            unsigned int arg_count;
+        } constructor;
+        struct {
+            char* cls;
+            char* field;
+            unsigned int pos; // added later
+        } field_access;
+        struct {
+            char* name;
+            struct ASTNode* default_value;
+        } field_def;
+        struct {
+            char* cls;
+            char* method;
+            struct ASTNode** args;
+            unsigned int arg_count;
+        } method_call;
     };
 } ASTNode;
 
@@ -99,6 +135,11 @@ ASTNode* create_ast_variable_def(char *name, ASTNode *body);
 ASTNode* create_ast_let_in(char **names, ASTNode **values, unsigned int count, ASTNode *body);
 ASTNode* create_ast_conditional(ASTNode* hypothesis, ASTNode* thesis, ASTNode* antithesis);
 ASTNode* create_ast_while_loop(ASTNode* cond, ASTNode* body);
+ASTNode* create_ast_type_def(char* name, char* base_type, ASTNode** members, unsigned int member_count);
+ASTNode* create_ast_constructor(char* cls, ASTNode** args, unsigned int arg_count);
+ASTNode* create_ast_field_def(char* name, ASTNode* default_value);
+ASTNode* create_ast_field_access(char* cls, char* field);
+ASTNode* create_ast_method_call(char* cls, char* method, ASTNode** args, unsigned int arg_count);
 void free_ast(ASTNode *node);
 
 #endif

@@ -11,6 +11,7 @@ typedef struct {
     char* phi; // holding the result of a phi call
     int label; // signed because it could be -1 if we are in the entry point
     int previous_label;
+    ASTNode* node;
 } Symbol;
 
 typedef struct {

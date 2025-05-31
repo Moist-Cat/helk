@@ -57,6 +57,82 @@ ASTNode* create_ast_conditional(ASTNode* hypothesis, ASTNode* thesis, ASTNode* a
     return node;
 }
 
+// Create field definition
+ASTNode* create_ast_field_def(char* name, ASTNode* default_value) {
+    ASTNode* node = malloc(sizeof(ASTNode));
+    node->type = AST_FIELD_DEF;
+    node->field_def.name = strdup(name);
+    node->field_def.default_value = default_value;
+    return node;
+}
+
+// Create type definition
+ASTNode* create_ast_type_def(char* name, char* base_type,
+                            ASTNode** members, unsigned int member_count) {
+    // Separate fields and methods
+    size_t field_count = 0;
+    size_t method_count = 0;
+
+    for (size_t i = 0; i < member_count; i++) {
+        if (members[i]->type == AST_FIELD_DEF) field_count++;
+        else if (members[i]->type == AST_FUNCTION_DEF) method_count++;
+    }
+
+    // Allocate type definition
+    ASTNode* node = malloc(sizeof(ASTNode));
+    node->type = AST_TYPE_DEF;
+    node->type_decl.name = strdup(name);
+    node->type_decl.base_type = base_type ? strdup(base_type) : NULL;
+    node->type_decl.fields = malloc(sizeof(ASTNode) * field_count);
+    node->type_decl.field_count = field_count;
+    node->type_decl.methods = malloc(sizeof(ASTNode*) * method_count);
+    node->type_decl.method_count = method_count;
+
+    // Populate fields and methods
+    size_t f_idx = 0, m_idx = 0;
+    for (size_t i = 0; i < member_count; i++) {
+        if (members[i]->type == AST_FIELD_DEF) {
+            node->type_decl.fields[f_idx++] = members[i];
+        } else if (members[i]->type == AST_FUNCTION_DEF) {
+            node->type_decl.methods[m_idx++] = members[i];
+        }
+    }
+
+    return node;
+}
+
+ASTNode *create_ast_constructor(char* cls, ASTNode **args, unsigned int arg_count) {
+    ASTNode *node = malloc(sizeof(ASTNode));
+    node->type = AST_CONSTRUCTOR;
+    node->constructor.cls = strdup(cls);
+
+    // shallow copy again
+    node->constructor.args = malloc(sizeof(ASTNode) * arg_count);
+    memcpy(node->constructor.args, args, sizeof(ASTNode) * arg_count);
+    node->constructor.arg_count = arg_count;
+    return node;
+}
+
+ASTNode *create_ast_field_access(char* cls, char* field) {
+    ASTNode *node = malloc(sizeof(ASTNode));
+    node->type = AST_FIELD_ACCESS;
+    node->field_access.cls = strdup(cls);
+    node->field_access.field = strdup(field);
+
+    return node;
+}
+
+ASTNode *create_ast_method_call(char* cls, char* method, ASTNode **args, unsigned int arg_count) {
+    ASTNode *node = malloc(sizeof(ASTNode));
+    node->type = AST_METHOD_CALL;
+    node->method_call.cls = strdup(cls);
+    node->method_call.method = strdup(method);
+
+    node->method_call.args = malloc(sizeof(ASTNode) * arg_count);
+    memcpy(node->method_call.args, args, sizeof(ASTNode) * arg_count);
+    node->method_call.arg_count = arg_count;
+    return node;
+}
 
 ASTNode *create_ast_variable_def(char *name, ASTNode *body) {
     ASTNode *node = malloc(sizeof(ASTNode));

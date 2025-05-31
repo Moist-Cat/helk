@@ -42,26 +42,32 @@ char* process_string(const char* input) {
     yylval->str = process_string(yytext); 
     return STRING_LITERAL; 
 }
-[0-9]+                  { yylval->num = atoi(yytext); return NUMBER; }
-"if"            { return IF; }
-"else"          { return ELSE; }
-"in"             { return IN; }
-"let"             { return LET; }
-"while"         { return WHILE; }
+[0-9]+                 { yylval->num = atoi(yytext); return NUMBER; }
+"new"                  { return NEW; }
+"."                    { return DOT; }
+"type"                 { return TYPE; }
+"self"                 { return SELF; }
+"base"                 { return BASE; }
+"inherits"             { return INHERITS; }
+"if"                   { return IF; }
+"else"                 { return ELSE; }
+"in"                   { return IN; }
+"let"                  { return LET; }
+"while"                { return WHILE; }
 "function"             { return FUNCTION; }
 ";"                    { return SEMICOLON; }
 ","                    { return COMMA; }
 "="                    { return EQUALS; }
 "=>"                   { return ARROW; }
 [a-zA-Z_][a-zA-Z0-9_]* { yylval->str = strdup(yytext); return IDENTIFIER; }
-"+"                     { return PLUS; }
-"-"                     { return MINUS; }
-"*"                     { return MULTIPLY; }
-"/"                     { return DIVIDE; }
-"("                     { return LPAREN; }
-")"                     { return RPAREN; }
-"{"             { return LBRACE; }
-"}"             { return RBRACE; }
-.                       { printf("Unknown character: %s\n", yytext); }
+"+"                    { return PLUS; }
+"-"                    { return MINUS; }
+"*"                    { return MULTIPLY; }
+"/"                    { return DIVIDE; }
+"("                    { return LPAREN; }
+")"                    { return RPAREN; }
+"{"                    { return LBRACE; }
+"}"                    { return RBRACE; }
+.                      { printf("Unknown character: %s\n", yytext); }
 
 %%

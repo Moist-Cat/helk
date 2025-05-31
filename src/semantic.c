@@ -19,8 +19,6 @@ bool solve_constraints(ConstraintSystem* cs) {
         changed = false;
         for(size_t i=0; i<cs->count; i++) {
             TypeConstraint* c = &cs->constraints[i];
-            //fprintf(stderr, "%s\n", c->node->function_call.name);
-            //fprintf(stderr, "%d\n", c->expected);
             TypeInfo* t = c->expected;
             int expected = t->kind;
             int actual = c->node->type_info.kind;
@@ -28,10 +26,16 @@ bool solve_constraints(ConstraintSystem* cs) {
 
             fprintf(stderr, "Expected: %d ; Actual: %d ; Node: %d\n\n", expected, actual, c->node->type);
 
+            if (c->node->type == AST_FUNCTION_CALL) {
+                fprintf(stderr, "For function %s\n", c->node->function_call.name);
+            }
+
             // Propagate concrete -> unknown
             if(expected != TYPE_UNKNOWN &&
                actual == TYPE_UNKNOWN) {
                 c->node->type_info.kind = ((TypeInfo*) (c->expected))->kind;
+                c->node->type_info.name = ((TypeInfo*) (c->expected))->name;
+                c->node->type_info.cls = ((TypeInfo*) (c->expected))->cls;
 
                 fprintf(stderr, "INFO - Solved type for node type=%d; to %d\n", c->node->type, c->node->type_info.kind);
                 changed = true;
@@ -229,15 +233,18 @@ void process_node(ASTNode* node, ConstraintSystem* cs, SymbolTable* current_scop
             break;
         }
         case AST_FUNCTION_CALL: {
-            TypeInfo *lit = malloc(sizeof(TypeInfo));
-            lit->kind = TYPE_DOUBLE;
-            lit->is_literal = true;
-
+            if (node->type_info.is_literal) {
+                break;
+            }
             process_function_call(
                 node,
                 cs, 
                 current_scope
             );
+
+            TypeInfo *lit = malloc(sizeof(TypeInfo));
+            lit->kind = TYPE_DOUBLE;
+            lit->is_literal = true;
 
             add_constraint(cs, node, lit);
             break;
@@ -297,8 +304,6 @@ void process_node(ASTNode* node, ConstraintSystem* cs, SymbolTable* current_scop
             add_constraint(cs, node, lit);
             break;
         }
-
-        // Handle other node types
     }
 }
 
@@ -347,6 +352,48 @@ static FlattenResult flatten(ASTNode* node) {
     return res;
 }
 
+// Transform object creation
+static char* new_constructor(char* cls) {
+    char* temp = malloc(16 + 16);
+    sprintf(temp, "%s_constructor", cls);
+    return temp;
+}
+
+static char* new_instance_type(char* cls) {
+    char* temp = malloc(16 + 16);
+    sprintf(temp, "%%struct.%s*", cls);
+    return temp;
+}
+
+static ASTNode* transform_constructor(ASTNode* node) {
+    // Transform constructor arguments
+    char* cname = new_constructor(node->constructor.cls);
+    ASTNode* new_node = create_ast_function_call(
+        cname,
+        node->constructor.args,
+        node->constructor.arg_count
+    );
+    new_node->type_info.cls = strdup(node->constructor.cls);
+    new_node->type_info.name = new_instance_type(node->constructor.cls);
+    new_node->type_info.kind = hash(cname);
+    new_node->type_info.is_literal = true;
+
+    // dealloc
+    free(node->constructor.cls);
+
+    return new_node;
+}
+
+// Transform method calls
+static ASTNode* transform_method_call(ASTNode* node) {
+    // Transform arguments
+    for (size_t i = 0; i < node->method_call.arg_count; i++) {
+        node->method_call.args[i] = transform_ast(node->method_call.args[i]);
+    }
+
+    return node;
+}
+
 ASTNode* transform_ast(ASTNode* node) {
     fprintf(stderr, "Node type=%d\n", node->type);
     if (!node) return NULL;
@@ -382,7 +429,7 @@ ASTNode* transform_ast(ASTNode* node) {
             // ... memory leak?
             free(node);
 
-            node = new_block;
+            node = transform_ast(new_block);
             break;
         }
         case AST_CONDITIONAL: {
@@ -395,6 +442,25 @@ ASTNode* transform_ast(ASTNode* node) {
         case AST_WHILE_LOOP: {
             node->while_loop.cond = transform_ast(node->while_loop.cond);
             node->while_loop.body = transform_ast(node->while_loop.body);
+            break;
+        }
+        case AST_BINARY_OP: {
+            node->binary_op.left = transform_ast(node->binary_op.left);
+            node->binary_op.right = transform_ast(node->binary_op.right);
+            break;
+        }
+        case AST_FUNCTION_CALL: {
+            for (size_t i = 0; i < node->function_call.arg_count; i++) {
+                node->function_call.args[i] = transform_ast(node->function_call.args[i]);
+            }
+            break;
+        }
+        case AST_VARIABLE_DEF: {
+            node->variable_def.body = transform_ast(node->variable_def.body);
+            break;
+        }
+        case AST_CONSTRUCTOR: {
+            node = transform_constructor(node);
             break;
         }
         default:
@@ -410,8 +476,12 @@ ASTNode* transform_ast(ASTNode* node) {
 static ASTNode* create_main_function(ASTNode** statements, unsigned int count) {
     ASTNode* main_block = malloc(sizeof(ASTNode));
     main_block->type = AST_BLOCK;
+
+    statements = realloc(statements, (count + 1) * sizeof(ASTNode*));
     main_block->block.statements = statements;
-    main_block->block.stmt_count = count;
+    main_block->block.stmt_count = count + 1;
+
+    statements[count] = create_ast_number(0);
 
     ASTNode* main_func = malloc(sizeof(ASTNode));
     main_func->type = AST_FUNCTION_DEF;
@@ -432,7 +502,7 @@ void sa_block(ASTNode *node) {
     // Separate statements into function definitions and others
     for (unsigned int i = 0; i < node->block.stmt_count; i++) {
         ASTNode *stmt = node->block.statements[i];
-        if (stmt->type == AST_FUNCTION_DEF) {
+        if ((stmt->type == AST_FUNCTION_DEF) || (stmt->type == AST_TYPE_DEF)) {
             func_defs = realloc(func_defs, (func_count + 1) * sizeof(ASTNode*));
             func_defs[func_count++] = stmt;
         } else {
@@ -503,6 +573,41 @@ void _semantic_analysis(ASTNode *node, ConstraintSystem* cs, SymbolTable* scope)
         case AST_BINARY_OP: {
             _semantic_analysis(node->binary_op.left, cs, scope);
             _semantic_analysis(node->binary_op.right, cs, scope);
+            break;
+        }
+        case AST_TYPE_DEF: {
+            // XXX double
+            char **cargs = malloc(sizeof(char*)*node->type_decl.field_count);
+            for (unsigned int i = 0; i < node->type_decl.field_count; i++) {
+                cargs[i] = "[param]";
+            }
+            char *cname = new_constructor(node->type_decl.name);
+            ASTNode* constructor = create_ast_function_def(cname, NULL, cargs, node->type_decl.field_count);
+            constructor->type_info.kind = hash(cname);
+            symbol_table_add(scope, cname, constructor);
+            // add class as well
+            symbol_table_add(scope, node->type_decl.name, node);
+            break;
+        }
+        case AST_FIELD_ACCESS: {
+            ASTNode* ref = symbol_table_lookup(scope, node->field_access.cls);
+            if (!ref->type_info.cls) {
+                fprintf(
+                    stderr,
+                    "WARNING - Could not access the class via the instance in %s.%s",
+                    node->field_access.cls,
+                    node->field_access.field
+                );
+                break;
+            }
+            ASTNode* cls = symbol_table_lookup(scope, ref->type_info.cls);
+            fprintf(stderr, "INFO - Accessing classs instance via '%s'\n", cls->type_info.cls);
+            fprintf(stderr, "INFO - Accessing classs instance via '%s'\n", node->field_access.field);
+            for (unsigned int i = 0; i < cls->type_decl.field_count; i++) {
+                if (strcmp(cls->type_decl.fields[i]->field_def.name, node->field_access.field) == 0) {
+                    node->field_access.pos = i;
+                }
+            }
             break;
         }
         default: {

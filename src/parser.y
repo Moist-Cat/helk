@@ -30,6 +30,10 @@ void yyerror(YYLTYPE *loc, void *scanner, const char *s);
     char* str;
     ASTNode* node;
     struct {
+        ASTNode **members;
+        unsigned int count;
+    } type_members;
+    struct {
         ASTNode **args;
         unsigned int count;
     } call_args;
@@ -70,15 +74,21 @@ void yyerror(YYLTYPE *loc, void *scanner, const char *s);
 %token IF ELSE
 %token WHILE
 %token <str> STRING_LITERAL
+%token TYPE NEW INHERITS SELF BASE DOT
 
 %type <node> expression
 %type <node> program
 %type <node> function_def
+%type <node> method_def
+%type <node> field_def
 %type <node> variable_def
+%type <node> type_def
+%type <node> type_member
 %type <node> statement
 %type <str> identifier
 %type <call_args> call_args
 %type <decl_args> decl_args
+%type <type_members> type_members
 %type <block> statement_block
 %type <var_defs> variable_def_list
 %type <var_def> variable_def_item
@@ -106,7 +116,48 @@ statement_block: /* nothing */ { $$.count = 0; $$.statements = NULL; }
 statement: variable_def { $$ = $1; }
          | expression { $$ = $1; }
          | function_def { $$ = $1; }
+         | type_def { $$ = $1; }
          ;
+
+// types
+type_def:
+    TYPE IDENTIFIER INHERITS IDENTIFIER LBRACE type_members RBRACE {
+        $$ = create_ast_type_def($2, $4, $6.members, $6.count);
+        free($2); free($4); free($6.members);
+    }
+    | TYPE IDENTIFIER LBRACE type_members RBRACE {
+        $$ = create_ast_type_def($2, NULL, $4.members, $4.count);
+        free($2); free($4.members);
+    }
+    ;
+
+type_members:
+    /* empty */ {
+        $$.count = 0;
+        $$.members = NULL;
+    }
+    | type_members type_member SEMICOLON {
+        $$.count = $1.count + 1;
+        $$.members = realloc($1.members, sizeof(ASTNode*) * $$.count);
+        $$.members[$$.count-1] = $2;
+    }
+    ;
+
+type_member:
+    field_def { $$ = $1; }
+    | method_def { $$ = $1; }
+    ;
+
+field_def:
+    identifier EQUALS expression {
+        $$ = create_ast_field_def($1, $3);
+    }
+    ;
+
+method_def:
+    identifier LPAREN decl_args RPAREN ARROW expression { $$ = create_ast_function_def($1, $6, $3.args, $3.count); free($1); free($3.args); }
+    ;
+
 
 variable_def_item:
     identifier EQUALS expression {
@@ -157,6 +208,9 @@ expression: NUMBER              { $$ = create_ast_number($1); }
           | expression MINUS expression  { $$ = create_ast_binary_op($1, $3, OP_SUB); }
           | expression MULTIPLY expression { $$ = create_ast_binary_op($1, $3, OP_MUL); }
           | expression DIVIDE expression { $$ = create_ast_binary_op($1, $3, OP_DIV); }
+          | NEW identifier LPAREN call_args RPAREN  { $$ = create_ast_constructor($2, $4.args, $4.count); free($2); free($4.args); }  // types
+          | identifier DOT identifier {$$ = create_ast_field_access($1, $3); free($1); free($3);}
+          | identifier DOT identifier LPAREN call_args RPAREN {$$ = create_ast_method_call($1, $3, $5.args, $5.count); free($1); free($3); free($5.args);}
           |
     LET variable_def_list IN expression {
         $$ = create_ast_let_in($2.names, $2.values, $2.count, $4);

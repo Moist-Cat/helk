@@ -4,41 +4,25 @@ declare double @min(double, double)
 declare double @print(double)
 declare double @prints(i8* nocapture) nounwind
 
-
-define double @fib(double %n) {
-l0:
-  %t2 = fadd double 0.000000e+00, 2.000000
-  %t3 = fsub double %n, %t2
-  %t4 = fadd double 0.000000e+00, 0.000000
-  %t1 = call double @max(double %t3, double %t4)
-  %t5 = fadd double 0.000000e+00, 1.000000
-  %t0 = call double @min(double %t1, double %t5)
-  %cond6 = fcmp one double %t0, 0.000000e+00
-  br i1 %cond6, label %l1, label %l2
-
-l1:
-  %t8 = fadd double 0.000000e+00, 1.000000
-  %t9 = fsub double %n, %t8
-  %t7 = call double @fib(double %t9)
-  %t11 = fadd double 0.000000e+00, 2.000000
-  %t12 = fsub double %n, %t11
-  %t10 = call double @fib(double %t12)
-  %t13 = fadd double %t7, %t10
-  br label %l3
-
-l2:
-  %t14 = fadd double 0.000000e+00, 1.000000
-  br label %l3
-
-l3:
-  %t15 = phi double [ %t13, %l1 ], [ %t14, %l2 ]
-  ret double %t15
+%struct.Point = type { double, double }
+define %struct.Point* @Point_constructor(double %x, double %y) {
+  %obj_ptr = alloca %struct.Point
+  %x_ptr = getelementptr %struct.Point, %struct.Point* %obj_ptr, i32 0, i32 0
+  store double %x, double* %x_ptr
+  %y_ptr = getelementptr %struct.Point, %struct.Point* %obj_ptr, i32 0, i32 1
+  store double %y, double* %y_ptr
+  ret %struct.Point* %obj_ptr
 }
 
 define double @main() {
-l4:
-  %t18 = fadd double 0.000000e+00, 10.000000
-  %t17 = call double @fib(double %t18)
-  %t16 = call double @print(double %t17)
-  ret double %t16
+l0:
+  %t1 = fadd double 0.000000e+00, 3.000000
+  %t2 = fadd double 0.000000e+00, 4.000000
+  %t0 = call %struct.Point* @Point_constructor(double %t1, double %t2)
+  ; Variable assignment: a = %t0
+  %t4_ptr = getelementptr %struct.Point, %struct.Point* %t0, i32 0, i32 0
+  %t4 = load double, double* %t4_ptr
+  %t3 = call double @print(double %t4)
+  %t5 = fadd double 0.000000e+00, 0.000000
+  ret double %t5
 }
