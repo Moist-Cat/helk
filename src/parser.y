@@ -74,7 +74,7 @@ void yyerror(YYLTYPE *loc, void *scanner, const char *s);
 %token IF ELSE
 %token WHILE
 %token <str> STRING_LITERAL
-%token TYPE NEW INHERITS SELF BASE DOT
+%token TYPE NEW INHERITS DOT
 
 %type <node> expression
 %type <node> program

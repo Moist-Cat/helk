@@ -46,8 +46,6 @@ char* process_string(const char* input) {
 "new"                  { return NEW; }
 "."                    { return DOT; }
 "type"                 { return TYPE; }
-"self"                 { return SELF; }
-"base"                 { return BASE; }
 "inherits"             { return INHERITS; }
 "if"                   { return IF; }
 "else"                 { return ELSE; }

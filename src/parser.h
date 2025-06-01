@@ -78,9 +78,7 @@ extern int yydebug;
     TYPE = 279,                    /* TYPE  */
     NEW = 280,                     /* NEW  */
     INHERITS = 281,                /* INHERITS  */
-    SELF = 282,                    /* SELF  */
-    BASE = 283,                    /* BASE  */
-    DOT = 284                      /* DOT  */
+    DOT = 282                      /* DOT  */
   };
   typedef enum yytokentype yytoken_kind_t;
 #endif
@@ -128,7 +126,7 @@ union YYSTYPE
         ASTNode *antithesis; // block
     } conditional;
 
-#line 132 "src/parser.h"
+#line 130 "src/parser.h"
 
 };
 typedef union YYSTYPE YYSTYPE;
@@ -158,6 +156,6 @@ int yyparse (void *scanner);
 
     int parse(char *text, ASTNode **node);
 
-#line 162 "src/parser.h"
+#line 160 "src/parser.h"
 
 #endif /* !YY_YY_SRC_PARSER_H_INCLUDED  */

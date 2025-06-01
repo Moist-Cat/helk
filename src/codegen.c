@@ -35,6 +35,21 @@ static char* new_arg(const char* name) {
     sprintf(temp, "%%%s", name);
 
     return temp;
+}
+
+char* detach_method(char* cls, char* method) {
+    char* temp = malloc(16 + 16);
+    sprintf(temp, "%s_%s", cls, method);
+    return temp;
+}
+
+
+int get_total_memory(ASTNode** fields, unsigned int field_count) {
+    unsigned int total = 0;
+    for (unsigned int i = 0; i < field_count; i++) {
+        // XXX double
+        total += 8;
+    }
 
 }
 
@@ -567,12 +582,13 @@ void codegen_stmt(CodegenContext* ctx, ASTNode* node) {
    else if (node->type == AST_TYPE_DEF) {
         // ... with types
         char* types = get_constructor_types(ctx, node->type_decl.fields, node->type_decl.field_count);
+        int total_memory = get_total_memory(node->type_decl.fields, node->type_decl.field_count);
         // define struct
         emit(ctx, "%%struct.%s = type { %s }\n", node->type_decl.name, types);
 
         // define constructor
         emit(ctx, "define %%struct.%s* @%s_constructor(%s) {\n", node->type_decl.name, node->type_decl.name, "double %x, double %y");
-        emit(ctx, "  %%heap_ptr = call i8* @malloc(i32 %d)\n", node->type_decl.name);
+        emit(ctx, "  %%heap_ptr = call i8* @malloc(i32 %d)\n", total_memory);
         emit(ctx, "  %%obj_ptr = bitcast i8* %%heap_ptr to %%struct.%s*\n", node->type_decl.name);
 
         for (size_t i = 0; i < node->type_decl.field_count; i++) {
@@ -593,6 +609,14 @@ void codegen_stmt(CodegenContext* ctx, ASTNode* node) {
         }
         emit(ctx, "  ret %%struct.%s* %%obj_ptr\n", node->type_decl.name);
         emit(ctx, "}\n", node->type_decl.name);
+
+        for (size_t i = 0; i < node->type_decl.method_count; i++) {
+            node->type_decl.methods[i]->function_def.name = detach_method(
+                node->type_decl.name,
+                node->type_decl.methods[i]->function_def.name
+            );
+            codegen_stmt(ctx, node->type_decl.methods[i]);
+        }
     }
     else {
         char* temp = gen_expr(ctx, node);
@@ -685,6 +709,7 @@ void codegen_declarations(CodegenContext* ctx, ASTNode *root) {
     emit(ctx, "declare double @print(double)\n");
     emit(ctx, "declare double @prints(i8* nocapture) nounwind\n");
     emit(ctx, "declare i8* @malloc(i32)\n");
+    emit(ctx, "declare void @free(i8*)\n");
 
     _codegen_declarations(ctx, root);
     emit(ctx, "\n");

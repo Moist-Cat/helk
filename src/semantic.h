@@ -37,6 +37,6 @@ typedef struct SymbolTable {
 bool semantic_analysis(ASTNode *node);
 void symbol_table_add(SymbolTable* st, const char* name, ASTNode* node);
 void process_node(ASTNode* node, ConstraintSystem* cs, SymbolTable* current_scope);
-ASTNode* transform_ast(ASTNode* node);
+ASTNode* transform_ast(ASTNode* node, SymbolTable* scope);
 
 #endif
