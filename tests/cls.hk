@@ -1,0 +1,5 @@
+type Point {
+    x = 0;
+    y = 0;
+};
+let a = new Point(3, 4) in let c=print(a.x), d=print(a.y) in 0;

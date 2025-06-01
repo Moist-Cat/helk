@@ -572,7 +572,8 @@ void codegen_stmt(CodegenContext* ctx, ASTNode* node) {
 
         // define constructor
         emit(ctx, "define %%struct.%s* @%s_constructor(%s) {\n", node->type_decl.name, node->type_decl.name, "double %x, double %y");
-        emit(ctx, "  %%obj_ptr = alloca %%struct.%s\n", node->type_decl.name);
+        emit(ctx, "  %%heap_ptr = call i8* @malloc(i32 %d)\n", node->type_decl.name);
+        emit(ctx, "  %%obj_ptr = bitcast i8* %%heap_ptr to %%struct.%s*\n", node->type_decl.name);
 
         for (size_t i = 0; i < node->type_decl.field_count; i++) {
             emit(
@@ -683,6 +684,7 @@ void codegen_declarations(CodegenContext* ctx, ASTNode *root) {
 
     emit(ctx, "declare double @print(double)\n");
     emit(ctx, "declare double @prints(i8* nocapture) nounwind\n");
+    emit(ctx, "declare i8* @malloc(i32)\n");
 
     _codegen_declarations(ctx, root);
     emit(ctx, "\n");

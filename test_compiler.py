@@ -163,6 +163,12 @@ class TestCompiler(unittest.TestCase):
         )
         self.run_test("while.hk", expected)
 
+    def test_cls(self):
+        expected = "\n".join(
+            ["3.000000\n4.000000"]
+        )
+        self.run_test("cls.hk", expected)
+
 
 if __name__ == "__main__":
     unittest.main()
