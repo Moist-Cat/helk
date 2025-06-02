@@ -1,3 +1,4 @@
+import re
 import unittest
 import os
 import subprocess
@@ -12,179 +13,82 @@ class TestCompiler(unittest.TestCase):
     OUTPUT_FILE = ".temp"
 
     def run_test(self, program_file, expected_output):
-        # 1. Compile the test program
-        test_path = os.path.join(self.TEST_DIR, program_file)
-        with open(test_path, "r") as file:
-            print(file.read())
-
-        compile_cmd = [self.COMPILER, test_path]
-        result = subprocess.run(
-            compile_cmd,
-            check=True,
-            capture_output=True,
-            text=True,
-        )
-
-        with open(self.LLVM_IR_FILE, "w") as file:
-            file.write(result.stdout.strip())
-        print(result.stdout.strip())
-
-        # 2. Generate executable from LLVM IR
-        link_cmd = [
-            "clang",
-            "-Wno-override-module",
-            self.LLVM_IR_FILE,
-            self.BUILTINS_FILE,
-            "-o",
-            self.OUTPUT_FILE,
-        ]
-        subprocess.run(link_cmd, check=True)
-
-        # 3. Run the program and capture output
-        result = subprocess.run(
-            [f"./{self.OUTPUT_FILE}"], capture_output=True, text=True
-        )
-
-        # 4. Verify output
-        self.assertEqual(
-            result.stdout.strip(),
-            expected_output,
-        )
-
-        # Clean up
+        # Ensure clean state
         Path(self.LLVM_IR_FILE).unlink(missing_ok=True)
         Path(self.OUTPUT_FILE).unlink(missing_ok=True)
+        
+        try:
+            # 1. Compile the test program
+            test_path = os.path.join(self.TEST_DIR, program_file)
+            with open(test_path, "r") as file:
+                print(file.read())
 
-    def test_arithmetic(self):
-        expected = "\n".join(["14.000000", "20.000000", "5.000000"])
-        self.run_test("arithmetic.hk", expected)
+            compile_cmd = [self.COMPILER, test_path]
+            result = subprocess.run(
+                compile_cmd,
+                check=True,
+                capture_output=True,
+                text=True,
+            )
 
-    def test_variables(self):
-        expected = "\n".join(["8.000000", "5.000000"])
-        self.run_test("variables.hk", expected)
+            with open(self.LLVM_IR_FILE, "w") as file:
+                file.write(result.stdout.strip())
+            print(result.stdout.strip())
 
-    def test_functions(self):
-        expected = "\n".join(["5.000000", "5.000000", "8.000000", "8.000000"])
-        self.run_test("functions.hk", expected)
-
-    def test_builtins(self):
-        expected = "\n".join(
-            [
-                "42.000000",
+            # 2. Generate executable from LLVM IR
+            link_cmd = [
+                "clang",
+                "-Wno-override-module",
+                self.LLVM_IR_FILE,
+                self.BUILTINS_FILE,
+                "-o",
+                self.OUTPUT_FILE,
             ]
-        )
-        self.run_test("builtins.hk", expected)
+            subprocess.run(link_cmd, check=True)
 
-    def test_manual(self):
-        expected = "\n".join(
-            [
-                "20.000000",
-            ]
-        )
-        self.run_test("test1.hk", expected)
+            # 3. Run the program and capture output
+            result = subprocess.run(
+                [f"./{self.OUTPUT_FILE}"], capture_output=True, text=True
+            )
 
-    def test_flat(self):
-        expected = "\n".join(
-            [
-                "7.000000",
-            ]
-        )
-        self.run_test("flat.hk", expected)
+            # 4. Verify output
+            self.assertEqual(
+                result.stdout.strip(),
+                expected_output.strip(),
+            )
+        finally:
+            # Clean up
+            Path(self.LLVM_IR_FILE).unlink(missing_ok=True)
+            Path(self.OUTPUT_FILE).unlink(missing_ok=True)
 
-    def test_cond(self):
-        expected = "\n".join(
-            [
-                "-5.000000",
-            ]
-        )
-        self.run_test("cond.hk", expected)
+    @classmethod
+    def create_test_methods(cls):
+        test_dir = Path(cls.TEST_DIR)
+        for hk_file in test_dir.glob("**/*.hk"):
+            # Find matching .out file
+            out_file = hk_file.with_suffix(".out")
+            if not out_file.exists():
+                continue
+                
+            # Read expected output
+            with open(out_file, 'r') as f:
+                expected_output = f.read()
 
-    def test_unordered(self):
-        expected = "\n".join(
-            [
-                "2.000000",
-            ]
-        )
-        self.run_test("unordered_declaration.hk", expected)
+            # Generate test name
+            rel_path = hk_file.relative_to(test_dir)
+            test_name = f"test_{rel_path.with_suffix('')}"
+            test_name = re.sub(r'[^a-zA-Z0-9_]', '_', str(test_name))
+            
+            # Create test method
+            def test_method(self, program_file=str(rel_path), 
+                           expected=expected_output):
+                self.run_test(program_file, expected)
+                
+            # Add to class
+            setattr(cls, test_name, test_method)
 
-    def test_unordered(self):
-        expected = "\n".join(
-            [
-                "oo ee oo",
-            ]
-        )
-        self.run_test("hello_world.hk", expected)
-
-    def test_big_print(self):
-        # for you
-        expected = "\n".join(
-            [
-                "hello world\n20.000000",
-            ]
-        )
-        self.run_test("big_print.hk", expected)
-
-    def test_string_type_inference(self):
-        expected = "\n".join(
-            [
-                "blob\nhello",
-            ]
-        )
-        self.run_test("string_type_infer.hk", expected)
-
-    def test_iff(self):
-        expected = "\n".join(
-            [
-                "55.000000",
-            ]
-        )
-        self.run_test("iff.hk", expected)
-
-    def test_iff(self):
-        expected = "\n".join(
-            [
-                "-3.000000",
-            ]
-        )
-        self.run_test("iff_real.hk", expected)
-
-    def test_nontrivial(self):
-        expected = "\n".join(
-            ["We made this many iterations:\n9.000000\nFinal value of b:\n5.000000"]
-        )
-        self.run_test("nontrivial.hk", expected)
-
-    def test_fib(self):
-        expected = "\n".join(["55.000000"])
-        self.run_test("fib.hk", expected)
-
-    def test_while(self):
-        expected = "\n".join(["4.000000\n3.000000\n2.000000\n1.000000\n0.000000"])
-        self.run_test("while.hk", expected)
-
-    def test_cls(self):
-        expected = "\n".join(["3.000000\n4.000000"])
-        self.run_test("cls.hk", expected)
-
-    def test_static_method(self):
-        expected = "\n".join(["3.000000\n4.000000\n4.000000\n3.000000\n20.000000"])
-        self.run_test("static_method.hk", expected)
-
-    def test_polymorphism(self):
-        expected = "\n".join(
-            [
-                "3.000000\n4.000000\n4.000000\n3.000000\n26.000000\n2.000000\n1.000000\n6.000000\n9.000000"
-            ]
-        )
-        self.run_test("polymorphism.hk", expected)
-
-    def test_method_poly(self):
-        expected = "\n".join(
-            [
-                "1000.000000\n1000.000000",
-            ]
-        )
-        self.run_test("method_poly.hk", expected)
+# Create test methods during class initialization
+TestCompiler.create_test_methods()
 
 if __name__ == "__main__":
     unittest.main()
