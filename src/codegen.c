@@ -51,6 +51,7 @@ int get_total_memory(ASTNode** fields, unsigned int field_count) {
         total += 8;
     }
 
+    return total;
 }
 
 static void add_symbol(CodegenContext* ctx, const char* name, const char* temp, ASTNode* node) {
@@ -178,6 +179,31 @@ static char* get_def_args(char** args, unsigned int arg_count) {
     // Generate code for all arguments first
     for (size_t i = 0; i < arg_count; i++) {
         temps[i] = args[i];
+        total_len += strlen(temps[i]) + 9; // XXX "double , " per argument
+    }
+
+    // Build arguments string
+    char* result = malloc(total_len + 1);
+    char* ptr = result;
+
+    for (size_t i = 0; i < arg_count; i++) {
+        int written = sprintf(ptr, "double %s%s%s", "%", temps[i], (i < arg_count-1) ? ", " : "");
+        ptr += written;
+    }
+
+    free(temps);
+    return result;
+}
+
+static char* get_constructor_args(ASTNode** args, unsigned int arg_count) {
+    if (arg_count == 0) return strdup("");
+
+    char** temps = malloc(arg_count * sizeof(char*));
+    size_t total_len = 0;
+
+    // Generate code for all arguments first
+    for (size_t i = 0; i < arg_count; i++) {
+        temps[i] = args[i]->field_def.name;
         total_len += strlen(temps[i]) + 9; // XXX "double , " per argument
     }
 
@@ -354,7 +380,11 @@ static char* gen_expr(CodegenContext* ctx, ASTNode* node) {
 
             if (symbol) {
                 if (symbol->label == ctx->label_counter - 1) {
-                    fprintf(stderr, "WARNING - Invalid redefinition detected. No operation was made\n");
+                    fprintf(
+                        stderr,
+                        "WARNING - Invalid redefinition detected (%s). No operation was made\n",
+                        symbol->name
+                    );
                     return symbol->name;
                 }
                 t4 = gen_expr(ctx, node->variable_def.body);
@@ -583,19 +613,28 @@ void codegen_stmt(CodegenContext* ctx, ASTNode* node) {
         // ... with types
         char* types = get_constructor_types(ctx, node->type_decl.fields, node->type_decl.field_count);
         int total_memory = get_total_memory(node->type_decl.fields, node->type_decl.field_count);
+        char* constructor_args = get_constructor_args(node->type_decl.fields, node->type_decl.field_count);
         // define struct
         emit(ctx, "%%struct.%s = type { %s }\n", node->type_decl.name, types);
 
+
         // define constructor
-        emit(ctx, "define %%struct.%s* @%s_constructor(%s) {\n", node->type_decl.name, node->type_decl.name, "double %x, double %y");
+        emit(
+            ctx,
+            "define %%struct.%s* @%s_constructor(%s) {\n",
+            node->type_decl.name,
+            node->type_decl.name,
+            constructor_args
+        );
         emit(ctx, "  %%heap_ptr = call i8* @malloc(i32 %d)\n", total_memory);
         emit(ctx, "  %%obj_ptr = bitcast i8* %%heap_ptr to %%struct.%s*\n", node->type_decl.name);
 
         for (size_t i = 0; i < node->type_decl.field_count; i++) {
             emit(
                 ctx,
-                "  %%%s_ptr = getelementptr %%struct.%s, %%struct.Point* %%obj_ptr, i32 0, i32 %d\n",
+                "  %%%s_ptr = getelementptr %%struct.%s, %%struct.%s* %%obj_ptr, i32 0, i32 %d\n",
                 node->type_decl.fields[i]->field_def.name,
+                node->type_decl.name,
                 node->type_decl.name,
                 i
             );

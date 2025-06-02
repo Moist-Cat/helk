@@ -46,7 +46,10 @@ class TestCompiler(unittest.TestCase):
         )
 
         # 4. Verify output
-        self.assertEqual(result.stdout.strip(), expected_output, )
+        self.assertEqual(
+            result.stdout.strip(),
+            expected_output,
+        )
 
         # Clean up
         Path(self.LLVM_IR_FILE).unlink(missing_ok=True)
@@ -152,23 +155,36 @@ class TestCompiler(unittest.TestCase):
         self.run_test("nontrivial.hk", expected)
 
     def test_fib(self):
-        expected = "\n".join(
-            ["55.000000"]
-        )
+        expected = "\n".join(["55.000000"])
         self.run_test("fib.hk", expected)
 
     def test_while(self):
-        expected = "\n".join(
-            ["4.000000\n3.000000\n2.000000\n1.000000\n0.000000"]
-        )
+        expected = "\n".join(["4.000000\n3.000000\n2.000000\n1.000000\n0.000000"])
         self.run_test("while.hk", expected)
 
     def test_cls(self):
-        expected = "\n".join(
-            ["3.000000\n4.000000"]
-        )
+        expected = "\n".join(["3.000000\n4.000000"])
         self.run_test("cls.hk", expected)
 
+    def test_static_method(self):
+        expected = "\n".join(["3.000000\n4.000000\n4.000000\n3.000000\n20.000000"])
+        self.run_test("static_method.hk", expected)
+
+    def test_polymorphism(self):
+        expected = "\n".join(
+            [
+                "3.000000\n4.000000\n4.000000\n3.000000\n26.000000\n2.000000\n1.000000\n6.000000\n9.000000"
+            ]
+        )
+        self.run_test("polymorphism.hk", expected)
+
+    def test_method_poly(self):
+        expected = "\n".join(
+            [
+                "1000.000000\n1000.000000",
+            ]
+        )
+        self.run_test("method_poly.hk", expected)
 
 if __name__ == "__main__":
     unittest.main()

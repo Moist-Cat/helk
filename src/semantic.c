@@ -573,6 +573,83 @@ void sa_block(ASTNode *node) {
     //free(main_body);
 }
 
+void inherit(ASTNode* node, ASTNode* parent) {
+    if (!parent) {
+        return;
+    }
+
+    // sanity check
+    for (unsigned int i = 0; i < node->type_decl.field_count; i++) {
+        for (unsigned int j = i; j < parent->type_decl.field_count; j++) {
+            if (
+                node->type_decl.fields[i]->field_def.name == parent->type_decl.fields[i]->field_def.name
+            ) {
+                fprintf(
+                    stderr,
+                    "ERROR - Redeclaration of field '%s' in '%s'!",
+                    node->type_decl.fields[i]->field_def.name,
+                    node->type_decl.name
+                );
+                exit(1);
+            }
+        }
+    }
+    unsigned int old_count = node->type_decl.field_count;
+    node->type_decl.field_count += parent->type_decl.field_count;
+    node->type_decl.fields = realloc(
+        node->type_decl.fields,
+        node->type_decl.field_count * sizeof(ASTNode*)
+    );
+    for (unsigned int i = 0; i < parent->type_decl.field_count; i++) {
+        if (i < old_count) {
+            // reallocate own field first
+            node->type_decl.fields[i + parent->type_decl.field_count] = node->type_decl.fields[i];
+        }
+        node->type_decl.fields[i] = parent->type_decl.fields[i];
+    }
+
+    node->type_decl.methods = realloc(
+        node->type_decl.methods,
+        (node->type_decl.method_count + parent->type_decl.method_count) * sizeof(ASTNode*)
+    );
+    unsigned int counter = 0;
+    bool flag = false;
+    for (unsigned int i = 0; i < parent->type_decl.method_count; i++) {
+        flag = false;
+        for (unsigned int j = 0; j < node->type_decl.method_count; j++) {
+            // reallocate own field first
+            if (
+                strcmp(
+                    node->type_decl.methods[j]->function_def.name, parent->type_decl.methods[i]->function_def.name
+                ) == 0
+            ) {
+                fprintf(stderr, "%s\n", node->type_decl.methods[j]->function_def.name);
+                flag = true;
+                break;
+            }
+        }
+        if (flag) {
+            continue;
+        }
+        fprintf(
+            stderr,
+            "INFO - (counter=%d, method_count=%d, parent_method=%s\n)",
+            counter,
+            node->type_decl.method_count, parent->type_decl.methods[i]->function_def.name
+        );
+        // create a new one since we modify the name in codegen to
+        // detach the method
+        node->type_decl.methods[counter + node->type_decl.method_count] = create_ast_function_def(
+            parent->type_decl.methods[i]->function_def.name,
+            parent->type_decl.methods[i]->function_def.body,
+            parent->type_decl.methods[i]->function_def.args,
+            parent->type_decl.methods[i]->function_def.arg_count
+        );
+        counter += 1;
+    }
+    node->type_decl.method_count += counter;
+}
+
 void _semantic_analysis(ASTNode *node, ConstraintSystem* cs, SymbolTable* scope) {
     /* Anything read-only */
     // at this point, let-ins do not exist
@@ -613,6 +690,17 @@ void _semantic_analysis(ASTNode *node, ConstraintSystem* cs, SymbolTable* scope)
         }
         case AST_TYPE_DEF: {
             // XXX double
+            if (node->type_decl.base_type) {
+                fprintf(
+                    stderr,
+                    "INFO - Found child class '%s' of '%s'\n",
+                    node->type_decl.name,
+                    node->type_decl.base_type
+                );
+                ASTNode* parent = symbol_table_lookup(scope, node->type_decl.base_type);
+
+                inherit(node, parent);
+            }
             char **cargs = malloc(sizeof(char*)*node->type_decl.field_count);
             for (unsigned int i = 0; i < node->type_decl.field_count; i++) {
                 cargs[i] = "[param]";
