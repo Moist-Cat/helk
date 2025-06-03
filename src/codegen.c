@@ -744,6 +744,7 @@ void codegen_declarations(CodegenContext* ctx, ASTNode *root) {
     emit(ctx, "; ModuleID = 'memelang'\n");
     emit(ctx, "declare double @max(double, double)\n");
     emit(ctx, "declare double @min(double, double)\n");
+    emit(ctx, "declare double @pow(double, double)\n");
 
     emit(ctx, "declare double @print(double)\n");
     emit(ctx, "declare double @prints(i8* nocapture) nounwind\n");

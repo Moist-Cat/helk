@@ -1,8 +1,6 @@
 CC=clang
-CXX=g++
 
-CFLAGS=-g -Wall -Wextra
-CXXFLAGS=-g -Wall -Wextra -Wno-self-assign
+CFLAGS=-lm -g -Wall -Wextra
 
 LEX_SOURCES=$(wildcard src/*.l) 
 LEX_OBJECTS=$(patsubst %.l,%.c,${LEX_SOURCES}) $(patsubst %.l,%.h,${LEX_SOURCES})
@@ -30,17 +28,17 @@ all: build/libcomp.a build/comp ${OBJECTS}
 run: build runtime
 	./build/comp tests/make.hk > out.ll
 	llc -filetype=obj out.ll -o out.o
-	$(CC) out.o src/builtins.o -o out
+	${CC} ${CFLAGS} out.o src/builtins.o -o out
 
 execute: hulk compile
-	$(CC) hulk/script.ll src/builtins.o -o hulk/script && ./hulk/script
+	${CC} ${CFLAGS} hulk/script.ll src/builtins.o -o hulk/script && ./hulk/script
 
 runtime: $(HELPERS_OBJ)
 
 # binaries
 
 src/builtins.o: $(BUILTINS)
-	$(CC) -c -o $@ $<
+	${CC} ${CFLAGS} -c -o $@ $<
 
 build/libcomp.a: ${LIB_OBJECTS} build_dir
 	rm -f build/libcomp.a
@@ -53,7 +51,7 @@ src/comp.o: src/comp.c build/libcomp.a
 	${CC} ${CFLAGS} -c -o $@ $^
 
 build/comp: ${OBJECTS}
-	$(CC) $(CFLAGS) -rdynamic -Isrc -o $@ src/comp.o build/libcomp.a
+	${CC} ${CFLAGS} -rdynamic -Isrc -o $@ src/comp.o build/libcomp.a
 	chmod 700 $@
 
 build: build/comp

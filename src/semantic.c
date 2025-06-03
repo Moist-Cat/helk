@@ -105,6 +105,13 @@ SymbolTable* create_symbol_table(SymbolTable* parent) {
         ASTNode* minima = create_ast_function_def("min", NULL, minargs, 2);
         minima->type_info.kind = TYPE_DOUBLE;
         symbol_table_add(st, "min", minima);
+
+        char **pow_args = malloc(sizeof(char*)*2);
+        pow_args[0] = "[pow_param_1]";
+        pow_args[1] = "[pow_param_2]";
+        ASTNode* power = create_ast_function_def("pow", NULL, pow_args, 2);
+        power->type_info.kind = TYPE_DOUBLE;
+        symbol_table_add(st, "pow", power);
     }
 
     return st;
@@ -480,6 +487,13 @@ ASTNode* transform_ast(ASTNode* node, SymbolTable* scope) {
         case AST_BINARY_OP: {
             node->binary_op.left = transform_ast(node->binary_op.left, scope);
             node->binary_op.right = transform_ast(node->binary_op.right, scope);
+
+            if (node->binary_op.op == OP_EXP) {
+                ASTNode** pow_args = malloc(sizeof(ASTNode*)*2);
+                pow_args[0] = node->binary_op.left;
+                pow_args[1] = node->binary_op.right;
+                node = create_ast_function_call("pow", pow_args, 2);
+            }
             break;
         }
         case AST_FUNCTION_CALL: {

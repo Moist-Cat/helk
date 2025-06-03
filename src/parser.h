@@ -60,25 +60,26 @@ extern int yydebug;
     MINUS = 261,                   /* MINUS  */
     MULTIPLY = 262,                /* MULTIPLY  */
     DIVIDE = 263,                  /* DIVIDE  */
-    LPAREN = 264,                  /* LPAREN  */
-    RPAREN = 265,                  /* RPAREN  */
-    LBRACE = 266,                  /* LBRACE  */
-    RBRACE = 267,                  /* RBRACE  */
-    FUNCTION = 268,                /* FUNCTION  */
-    COMMA = 269,                   /* COMMA  */
-    ARROW = 270,                   /* ARROW  */
-    LET = 271,                     /* LET  */
-    EQUALS = 272,                  /* EQUALS  */
-    IN = 273,                      /* IN  */
-    SEMICOLON = 274,               /* SEMICOLON  */
-    IF = 275,                      /* IF  */
-    ELSE = 276,                    /* ELSE  */
-    WHILE = 277,                   /* WHILE  */
-    STRING_LITERAL = 278,          /* STRING_LITERAL  */
-    TYPE = 279,                    /* TYPE  */
-    NEW = 280,                     /* NEW  */
-    INHERITS = 281,                /* INHERITS  */
-    DOT = 282                      /* DOT  */
+    EXP = 264,                     /* EXP  */
+    LPAREN = 265,                  /* LPAREN  */
+    RPAREN = 266,                  /* RPAREN  */
+    LBRACE = 267,                  /* LBRACE  */
+    RBRACE = 268,                  /* RBRACE  */
+    FUNCTION = 269,                /* FUNCTION  */
+    COMMA = 270,                   /* COMMA  */
+    ARROW = 271,                   /* ARROW  */
+    LET = 272,                     /* LET  */
+    EQUALS = 273,                  /* EQUALS  */
+    IN = 274,                      /* IN  */
+    SEMICOLON = 275,               /* SEMICOLON  */
+    IF = 276,                      /* IF  */
+    ELSE = 277,                    /* ELSE  */
+    WHILE = 278,                   /* WHILE  */
+    STRING_LITERAL = 279,          /* STRING_LITERAL  */
+    TYPE = 280,                    /* TYPE  */
+    NEW = 281,                     /* NEW  */
+    INHERITS = 282,                /* INHERITS  */
+    DOT = 283                      /* DOT  */
   };
   typedef enum yytokentype yytoken_kind_t;
 #endif
@@ -126,7 +127,7 @@ union YYSTYPE
         ASTNode *antithesis; // block
     } conditional;
 
-#line 130 "src/parser.h"
+#line 131 "src/parser.h"
 
 };
 typedef union YYSTYPE YYSTYPE;
@@ -156,6 +157,6 @@ int yyparse (void *scanner);
 
     int parse(char *text, ASTNode **node);
 
-#line 160 "src/parser.h"
+#line 161 "src/parser.h"
 
 #endif /* !YY_YY_SRC_PARSER_H_INCLUDED  */

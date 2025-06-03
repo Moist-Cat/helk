@@ -38,6 +38,7 @@ class TestCompiler(unittest.TestCase):
             # 2. Generate executable from LLVM IR
             link_cmd = [
                 "clang",
+                "-lm",
                 "-Wno-override-module",
                 self.LLVM_IR_FILE,
                 self.BUILTINS_FILE,

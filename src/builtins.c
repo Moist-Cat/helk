@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <math.h>
 
 double print(double x) {
     printf("%f\n", x);

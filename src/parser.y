@@ -66,7 +66,7 @@ void yyerror(YYLTYPE *loc, void *scanner, const char *s);
 
 %token <num> NUMBER
 %token <str> IDENTIFIER
-%token PLUS MINUS MULTIPLY DIVIDE
+%token PLUS MINUS MULTIPLY DIVIDE EXP
 %token LPAREN RPAREN LBRACE RBRACE
 %token FUNCTION COMMA ARROW
 %token LET EQUALS IN
@@ -185,7 +185,21 @@ variable_def_list:
 
 function_def:
     FUNCTION identifier LPAREN decl_args RPAREN ARROW expression { $$ = create_ast_function_def($2, $7, $4.args, $4.count); free($2); free($4.args); }
-            ;
+    | FUNCTION identifier LPAREN decl_args RPAREN LBRACE statement_block RBRACE {
+        $$ = create_ast_function_def(
+            $2,
+            create_ast_block(
+                $7.statements,
+                $7.count
+            ),
+            $4.args,
+            $4.count
+        );
+        free($2);
+        free($4.args);
+        free($7.statements);
+    }
+    ;
 
 call_args: /* nothing! */ { $$.count = 0; $$.args = NULL; }
          | expression /* last arg*/ { $$.count = 1; $$.args = malloc(sizeof(ASTNode*)); $$.args[0] = $1; }
@@ -208,6 +222,7 @@ expression: NUMBER              { $$ = create_ast_number($1); }
           | expression MINUS expression  { $$ = create_ast_binary_op($1, $3, OP_SUB); }
           | expression MULTIPLY expression { $$ = create_ast_binary_op($1, $3, OP_MUL); }
           | expression DIVIDE expression { $$ = create_ast_binary_op($1, $3, OP_DIV); }
+          | expression EXP expression { $$ = create_ast_binary_op($1, $3, OP_EXP); }
           | NEW identifier LPAREN call_args RPAREN  { $$ = create_ast_constructor($2, $4.args, $4.count); free($2); free($4.args); }  // types
           | identifier DOT identifier {$$ = create_ast_field_access($1, $3); free($1); free($3);}
           | identifier DOT identifier LPAREN call_args RPAREN {$$ = create_ast_method_call($1, $3, $5.args, $5.count); free($1); free($3); free($5.args);}

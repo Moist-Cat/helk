@@ -1,0 +1,4 @@
+let a = 6, b = a * 7 in print(b);
+let c = 6 in
+    let d = c * 7 in
+        print(d);
