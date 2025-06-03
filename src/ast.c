@@ -8,8 +8,8 @@ ASTNode *create_ast_block(ASTNode **block, unsigned int stmt_count) {
     node->type = AST_BLOCK;
 
     // shallow copy again again
-    node->block.statements = malloc(sizeof(ASTNode) * stmt_count);
-    memcpy(node->block.statements, block, sizeof(ASTNode) * stmt_count);
+    node->block.statements = malloc(sizeof(ASTNode*) * stmt_count);
+    memcpy(node->block.statements, block, sizeof(ASTNode*) * stmt_count);
 
     node->block.stmt_count = stmt_count;
 
@@ -24,8 +24,8 @@ ASTNode* create_ast_let_in(char **names, ASTNode **values, unsigned int count, A
     node->let_in.var_names = malloc(sizeof(char*) * count);
     memcpy(node->let_in.var_names, names, sizeof(char*) * count);
 
-    node->let_in.var_values = malloc(sizeof(ASTNode) * count);
-    memcpy(node->let_in.var_values, values, sizeof(ASTNode) * count);
+    node->let_in.var_values = malloc(sizeof(ASTNode*) * count);
+    memcpy(node->let_in.var_values, values, sizeof(ASTNode*) * count);
 
     node->let_in.var_count = count;
     node->let_in.body = body;
@@ -83,7 +83,7 @@ ASTNode* create_ast_type_def(char* name, char* base_type,
     node->type = AST_TYPE_DEF;
     node->type_decl.name = strdup(name);
     node->type_decl.base_type = base_type ? strdup(base_type) : NULL;
-    node->type_decl.fields = malloc(sizeof(ASTNode) * field_count);
+    node->type_decl.fields = malloc(sizeof(ASTNode*) * field_count);
     node->type_decl.field_count = field_count;
     node->type_decl.methods = malloc(sizeof(ASTNode*) * method_count);
     node->type_decl.method_count = method_count;
@@ -98,6 +98,7 @@ ASTNode* create_ast_type_def(char* name, char* base_type,
         }
     }
 
+    //free(members); // Free array but not elements
     return node;
 }
 
@@ -107,8 +108,8 @@ ASTNode *create_ast_constructor(char* cls, ASTNode **args, unsigned int arg_coun
     node->constructor.cls = strdup(cls);
 
     // shallow copy again
-    node->constructor.args = malloc(sizeof(ASTNode) * arg_count);
-    memcpy(node->constructor.args, args, sizeof(ASTNode) * arg_count);
+    node->constructor.args = malloc(sizeof(ASTNode*) * arg_count);
+    memcpy(node->constructor.args, args, sizeof(ASTNode*) * arg_count);
     node->constructor.arg_count = arg_count;
     return node;
 }
@@ -128,8 +129,8 @@ ASTNode *create_ast_method_call(char* cls, char* method, ASTNode **args, unsigne
     node->method_call.cls = strdup(cls);
     node->method_call.method = strdup(method);
 
-    node->method_call.args = malloc(sizeof(ASTNode) * arg_count);
-    memcpy(node->method_call.args, args, sizeof(ASTNode) * arg_count);
+    node->method_call.args = malloc(sizeof(ASTNode*) * arg_count);
+    memcpy(node->method_call.args, args, sizeof(ASTNode*) * arg_count);
     node->method_call.arg_count = arg_count;
     return node;
 }
@@ -156,8 +157,8 @@ ASTNode *create_ast_function_def(char *name, ASTNode *body, char **args, unsigne
     node->function_def.body = body;
 
     // shallow copy again
-    node->function_def.args = malloc(sizeof(ASTNode) * arg_count);
-    memcpy(node->function_def.args, args, sizeof(ASTNode) * arg_count);
+    node->function_def.args = malloc(sizeof(ASTNode*) * arg_count);
+    memcpy(node->function_def.args, args, sizeof(ASTNode*) * arg_count);
     node->function_def.arg_count = arg_count;
     return node;
 }
@@ -168,8 +169,8 @@ ASTNode *create_ast_function_call(char *name, ASTNode **args, unsigned int arg_c
     node->function_call.name = strdup(name);
 
     // shallow copy
-    node->function_call.args = malloc(sizeof(ASTNode) * arg_count);
-    memcpy(node->function_call.args, args, sizeof(ASTNode) * arg_count);
+    node->function_call.args = malloc(sizeof(ASTNode*) * arg_count);
+    memcpy(node->function_call.args, args, sizeof(ASTNode*) * arg_count);
     node->function_call.arg_count = arg_count;
 
     return node;

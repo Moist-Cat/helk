@@ -1,7 +1,11 @@
-let a = 20 in let a = 42 in print(a);
+let a = 5;
+let b = 5;
 
-let a = 7 in
-    let a = 7 * 6 in
-        print(a);
+let x = if (a - b + 1) {
+    let tmp = if (a - a) { b * 2; } else {b * 10;};
+    tmp + 5;
+} else {
+    b - 10;
+};
 
-let a = 7, a = 7 * 6 in print(a);
+print(x);

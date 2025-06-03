@@ -66,7 +66,7 @@ void yyerror(YYLTYPE *loc, void *scanner, const char *s);
 
 %token <num> NUMBER
 %token <str> IDENTIFIER
-%token PLUS MINUS MULTIPLY DIVIDE EXP
+%token PLUS MINUS MULTIPLY DIVIDE EXP MOD
 %token LPAREN RPAREN LBRACE RBRACE
 %token FUNCTION COMMA ARROW
 %token LET EQUALS IN
@@ -223,6 +223,7 @@ expression: NUMBER              { $$ = create_ast_number($1); }
           | expression MULTIPLY expression { $$ = create_ast_binary_op($1, $3, OP_MUL); }
           | expression DIVIDE expression { $$ = create_ast_binary_op($1, $3, OP_DIV); }
           | expression EXP expression { $$ = create_ast_binary_op($1, $3, OP_EXP); }
+          | expression MOD expression { $$ = create_ast_binary_op($1, $3, OP_MOD); }
           | NEW identifier LPAREN call_args RPAREN  { $$ = create_ast_constructor($2, $4.args, $4.count); free($2); free($4.args); }  // types
           | identifier DOT identifier {$$ = create_ast_field_access($1, $3); free($1); free($3);}
           | identifier DOT identifier LPAREN call_args RPAREN {$$ = create_ast_method_call($1, $3, $5.args, $5.count); free($1); free($3); free($5.args);}

@@ -6,7 +6,8 @@ typedef enum {
     OP_SUB,
     OP_MUL,
     OP_DIV,
-    OP_EXP
+    OP_EXP,
+    OP_MOD
 } ASTBinaryOp;
 
 typedef enum {

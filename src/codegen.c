@@ -346,6 +346,7 @@ static char* gen_expr(CodegenContext* ctx, ASTNode* node) {
                 case OP_SUB: op = "fsub"; break;
                 case OP_MUL: op = "fmul"; break;
                 case OP_DIV: op = "fdiv"; break;
+                case OP_MOD: op = "frem"; break;
             }
             
 
@@ -426,7 +427,7 @@ static char* gen_expr(CodegenContext* ctx, ASTNode* node) {
             else if (node->type_info.kind == TYPE_UNKNOWN) {
                 fprintf(
                     stderr,
-                    "WARNING - Type for node type=%d is unknown during codegen",
+                    "WARNING - Type for node type=%d is unknown during codegen\n",
                     node->type
                 );
                 type = "double";
@@ -732,6 +733,18 @@ void _codegen_declarations(CodegenContext* ctx, ASTNode *node) {
             }
             break;
         }
+        case AST_CONDITIONAL: {
+            _codegen_declarations(ctx, node->conditional.hypothesis);
+            _codegen_declarations(ctx, node->conditional.thesis);
+            _codegen_declarations(ctx, node->conditional.antithesis);
+            break;
+        }
+        case AST_WHILE_LOOP: {
+            _codegen_declarations(ctx, node->while_loop.cond);
+            _codegen_declarations(ctx, node->while_loop.body);
+            break;
+        }
+
         case AST_FUNCTION_DEF: {
             _codegen_declarations(ctx, node->function_def.body);
             break;

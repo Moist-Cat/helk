@@ -58,6 +58,7 @@ char* process_string(const char* input) {
 "="                    { return EQUALS; }
 "=>"                   { return ARROW; }
 [a-zA-Z_][a-zA-Z0-9_]* { yylval->str = strdup(yytext); return IDENTIFIER; }
+"%"                    { return MOD; }
 "^"                    { return EXP; }
 "+"                    { return PLUS; }
 "-"                    { return MINUS; }

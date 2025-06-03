@@ -24,6 +24,7 @@ bool solve_constraints(ConstraintSystem* cs) {
             int actual = c->node->type_info.kind;
 
 
+
             fprintf(stderr, "Expected: %d ; Actual: %d ; Node: %d\n\n", expected, actual, c->node->type);
 
             if (c->node->type == AST_FUNCTION_CALL) {
@@ -36,11 +37,11 @@ bool solve_constraints(ConstraintSystem* cs) {
             // Propagate concrete -> unknown
             if(expected != TYPE_UNKNOWN &&
                actual == TYPE_UNKNOWN) {
+                fprintf(stderr, "INFO - Solved type for node type=%d; to %d\n", c->node->type, c->node->type_info.kind);
                 c->node->type_info.kind = ((TypeInfo*) (c->expected))->kind;
                 c->node->type_info.name = ((TypeInfo*) (c->expected))->name;
                 c->node->type_info.cls = ((TypeInfo*) (c->expected))->cls;
 
-                fprintf(stderr, "INFO - Solved type for node type=%d; to %d\n", c->node->type, c->node->type_info.kind);
                 changed = true;
             }
 
@@ -48,7 +49,8 @@ bool solve_constraints(ConstraintSystem* cs) {
             if(expected != TYPE_UNKNOWN &&
                actual != TYPE_UNKNOWN &&
                expected != actual) {
-                fprintf(stderr, "ERROR - Literal type mismatch\n");
+                fprintf(stderr, "ERROR - Literal type mismatch %d %s\n", c->node->type, c->node->variable.name);
+                exit(1);
                 return false;
             }
         }
@@ -100,8 +102,8 @@ SymbolTable* create_symbol_table(SymbolTable* parent) {
         symbol_table_add(st, "max", maxima);
 
         char **minargs = malloc(sizeof(char*)*2);
-        psargs[0] = "[min_param_1]";
-        psargs[1] = "[min_param_2]";
+        minargs[0] = "[min_param_1]";
+        minargs[1] = "[min_param_2]";
         ASTNode* minima = create_ast_function_def("min", NULL, minargs, 2);
         minima->type_info.kind = TYPE_DOUBLE;
         symbol_table_add(st, "min", minima);
@@ -131,7 +133,7 @@ ASTNode* symbol_table_lookup(SymbolTable* st, const char* name) {
         size_t idx = hash(name) % curr->size;
         for(SymbolEntry* e = curr->entries[idx]; e; e = e->next) {
             if(strcmp(e->name, name) == 0) {
-                fprintf(stderr, "INFO - Found symbol %s\n", name);
+                fprintf(stderr, "INFO - Found symbol %s %d\n", name);
                 return e->node;
             }
         }
@@ -181,7 +183,12 @@ void process_function_call(
         //              expected, call->function_call.args[i]->type_info);
 
         // Add parameter to symbol table
-        fprintf(stderr, "Adding parameter %s to symbol table\n", function_def->function_def.args[i]);
+        fprintf(
+            stderr,
+            "Adding parameter %s to symbol table for function %s\n",
+            function_def->function_def.args[i],
+            function_def->function_def.name
+        );
         symbol_table_add(func_scope,
                         function_def->function_def.args[i],
                         call->function_call.args[i]);
@@ -192,6 +199,12 @@ void process_function_call(
 }
 
 void process_node(ASTNode* node, ConstraintSystem* cs, SymbolTable* current_scope) {
+
+    if ((node->type_info.kind > 100) && (node->type_info.name == NULL)) {
+        fprintf(stderr, "--------- blob %d %d %s %p\n", node->type, node->type_info.kind, node->variable.name, node->type_info.kind);
+        node->type_info.kind = 0;
+        exit(1);
+    }
     switch(node->type) {
         case AST_BINARY_OP: {
             // Both operands must be numeric
@@ -208,19 +221,23 @@ void process_node(ASTNode* node, ConstraintSystem* cs, SymbolTable* current_scop
         }
 
         case AST_CONDITIONAL: {
-            /*
-            add_constraint(cs, node,
-                node->conditional.thesis->type_info);
+            TypeInfo *lit = malloc(sizeof(TypeInfo));
+            lit->kind = TYPE_DOUBLE;
+            lit->is_literal = true;
 
             // Hypothesis must be numeric (treated as float)
-            add_constraint(cs, node->conditional.hypothesis,
-                (TypeInfo){TYPE_DOUBLE, false});
+            add_constraint(cs, node->conditional.hypothesis, lit);
+
             // Branches must match
             add_constraint(cs, node->conditional.thesis,
-                node->conditional.antithesis->type_info);
+                &node->conditional.antithesis->type_info);
             add_constraint(cs, node->conditional.antithesis,
-                node->conditional.thesis->type_info);
-            */
+                &node->conditional.thesis->type_info);
+
+            // type depends on body
+            add_constraint(cs, node,
+                &node->conditional.thesis->type_info);
+
             break;
         }
 
@@ -252,11 +269,11 @@ void process_node(ASTNode* node, ConstraintSystem* cs, SymbolTable* current_scop
                 current_scope
             );
 
-            TypeInfo *lit = malloc(sizeof(TypeInfo));
-            lit->kind = TYPE_DOUBLE;
-            lit->is_literal = true;
+            //TypeInfo *lit = malloc(sizeof(TypeInfo));
+            //lit->kind = TYPE_DOUBLE;
+            //lit->is_literal = true;
 
-            add_constraint(cs, node, lit);
+            //add_constraint(cs, node, lit);
             break;
         }
         case AST_FUNCTION_DEF: {
@@ -702,6 +719,12 @@ void _semantic_analysis(ASTNode *node, ConstraintSystem* cs, SymbolTable* scope)
             _semantic_analysis(node->binary_op.right, cs, scope);
             break;
         }
+        case AST_CONDITIONAL: {
+            _semantic_analysis(node->conditional.hypothesis, cs, scope);
+            _semantic_analysis(node->conditional.thesis, cs, scope);
+            _semantic_analysis(node->conditional.antithesis, cs, scope);
+            break;
+        }
         case AST_TYPE_DEF: {
             // XXX double
             if (node->type_decl.base_type) {
@@ -753,6 +776,8 @@ void _semantic_analysis(ASTNode *node, ConstraintSystem* cs, SymbolTable* scope)
             }
             break;
         }
+        default:
+            break;
     }
 }
 
@@ -768,8 +793,9 @@ bool semantic_analysis(ASTNode *node) {
             
             bool res = solve_constraints(&cs);
             // DEBUG to see final types clearly
-            solve_constraints(&cs);
+            //solve_constraints(&cs);
 
+            // second round to get custom types
             node = transform_ast(node, scope); // embrace FLATness (transform the children)
             return res;
         }
