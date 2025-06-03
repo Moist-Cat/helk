@@ -382,10 +382,13 @@ static char* gen_expr(CodegenContext* ctx, ASTNode* node) {
                 if (symbol->label == ctx->label_counter - 1) {
                     fprintf(
                         stderr,
-                        "WARNING - Invalid redefinition detected (%s). No operation was made\n",
+                        "WARNING - Dangerous redefinition detected (%s). The variable now points to a new temp var.\n",
                         symbol->name
                     );
-                    return symbol->name;
+
+                    symbol->temp = gen_expr(ctx, node->variable_def.body);
+                    return symbol->temp;
+                    //return symbol->name;
                 }
                 t4 = gen_expr(ctx, node->variable_def.body);
 
@@ -525,7 +528,7 @@ void gen_redefs(CodegenContext* ctx, ASTNode* node) {
                 // If we didn't define a new label
                 // Then this becomes a no-op
                 if (symbol->label == ctx->label_counter - 1) {
-                    fprintf(stderr, "WARNING - Invalid redefinition detected. No operation was made\n");
+                    fprintf(stderr, "WARNING - Dangerous redefinition detected. No operation was made\n");
                     return;
                 }
                 // different labels
