@@ -1,0 +1,3 @@
+> function second(a, b, c) => b
+
+Compute closure.
