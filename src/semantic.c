@@ -23,8 +23,6 @@ bool solve_constraints(ConstraintSystem* cs) {
             int expected = t->kind;
             int actual = c->node->type_info.kind;
 
-
-
             fprintf(stderr, "Expected: %d ; Actual: %d ; Node: %d\n\n", expected, actual, c->node->type);
 
             if (c->node->type == AST_FUNCTION_CALL) {
@@ -37,10 +35,11 @@ bool solve_constraints(ConstraintSystem* cs) {
             // Propagate concrete -> unknown
             if(expected != TYPE_UNKNOWN &&
                actual == TYPE_UNKNOWN) {
-                fprintf(stderr, "INFO - Solved type for node type=%d; to %d\n", c->node->type, c->node->type_info.kind);
                 c->node->type_info.kind = ((TypeInfo*) (c->expected))->kind;
                 c->node->type_info.name = ((TypeInfo*) (c->expected))->name;
                 c->node->type_info.cls = ((TypeInfo*) (c->expected))->cls;
+
+                fprintf(stderr, "INFO - Solved type for node type=%d; to %d\n", c->node->type, c->node->type_info.kind);
 
                 changed = true;
             }
@@ -49,9 +48,9 @@ bool solve_constraints(ConstraintSystem* cs) {
             if(expected != TYPE_UNKNOWN &&
                actual != TYPE_UNKNOWN &&
                expected != actual) {
-                fprintf(stderr, "ERROR - Literal type mismatch %d %s\n", c->node->type, c->node->variable.name);
-                exit(1);
-                return false;
+               fprintf(stderr, "ERROR - Literal type mismatch %d %s\n", c->node->type, c->node->variable.name);
+               exit(1);
+               return false;
             }
         }
     } while(changed);
@@ -133,7 +132,7 @@ ASTNode* symbol_table_lookup(SymbolTable* st, const char* name) {
         size_t idx = hash(name) % curr->size;
         for(SymbolEntry* e = curr->entries[idx]; e; e = e->next) {
             if(strcmp(e->name, name) == 0) {
-                fprintf(stderr, "INFO - Found symbol %s %d\n", name);
+                fprintf(stderr, "INFO - Found symbol %s\n", name);
                 return e->node;
             }
         }
@@ -175,35 +174,40 @@ void process_function_call(
         // Process argument expression
         process_node(call->function_call.args[i], cs, func_scope);
 
-        // Get expected parameter type
-        //TypeInfo expected = function_def->function_def.args[i]->type_info;
-
         // Add constraint: arg_type == param_type
-        //add_constraint(cs, call->function_call.args[i],
-        //              expected, call->function_call.args[i]->type_info);
+        add_constraint(
+            cs,
+            function_def->function_def.args_definitions[i],
+            &call->function_call.args[i]->type_info
+        );
 
         // Add parameter to symbol table
         fprintf(
             stderr,
-            "Adding parameter %s to symbol table for function %s\n",
+            "Adding parameter '%s' to symbol table for function %s (type %d)\n",
             function_def->function_def.args[i],
-            function_def->function_def.name
+            function_def->function_def.name,
+            call->function_call.args[i]->type_info.kind
         );
         symbol_table_add(func_scope,
                         function_def->function_def.args[i],
-                        call->function_call.args[i]);
+                        function_def->function_def.args_definitions[i]);
     }
 
     // 4. Process return type constraint
     add_constraint(cs, call, &function_def->type_info);
+    solve_constraints(cs);
+    if (function_def->type_info.kind == TYPE_UNKNOWN) {
+        _semantic_analysis(function_def, cs, func_scope);
+    }
 }
 
 void process_node(ASTNode* node, ConstraintSystem* cs, SymbolTable* current_scope) {
 
     if ((node->type_info.kind > 100) && (node->type_info.name == NULL)) {
         fprintf(stderr, "--------- blob %d %d %s %p\n", node->type, node->type_info.kind, node->variable.name, node->type_info.kind);
-        node->type_info.kind = 0;
-        exit(1);
+        //node->type_info.kind = 0;
+        //exit(1);
     }
     switch(node->type) {
         case AST_BINARY_OP: {
@@ -260,9 +264,6 @@ void process_node(ASTNode* node, ConstraintSystem* cs, SymbolTable* current_scop
             break;
         }
         case AST_FUNCTION_CALL: {
-            if (node->type_info.is_literal) {
-                break;
-            }
             process_function_call(
                 node,
                 cs, 
@@ -278,9 +279,12 @@ void process_node(ASTNode* node, ConstraintSystem* cs, SymbolTable* current_scop
         }
         case AST_FUNCTION_DEF: {
             fprintf(stderr, "INFO - Found function (name=%s) during constraint collection\n", node->function_def.name);
+            symbol_table_add(current_scope, node->function_def.name, node);
 
-            add_constraint(cs, node,
-                &node->function_def.body->type_info);
+            if (node->function_def.body != NULL) {
+                add_constraint(cs, node,
+                    &node->function_def.body->type_info);
+            }
             break;
         }
         case AST_VARIABLE: {
@@ -698,7 +702,7 @@ void _semantic_analysis(ASTNode *node, ConstraintSystem* cs, SymbolTable* scope)
             break;
         }
         case AST_FUNCTION_DEF: {
-            fprintf(stderr, "INFO - Performing sem_anal into function %s\n", node->function_def.name);
+            fprintf(stderr, "INFO - Performing sem_anal into function def %s\n", node->function_def.name);
             _semantic_analysis(node->function_def.body, cs, scope);
             break;
         }
@@ -710,8 +714,23 @@ void _semantic_analysis(ASTNode *node, ConstraintSystem* cs, SymbolTable* scope)
             break;
         }
         case AST_VARIABLE_DEF: {
-            fprintf(stderr, "INFO - Performing sem_anal into variable %s\n", node->variable_def.name);
+            fprintf(stderr, "INFO - Performing sem_anal into variable def %s\n", node->variable_def.name);
             _semantic_analysis(node->variable_def.body, cs, scope);
+            break;
+        }
+        case AST_VARIABLE: {
+            fprintf(stderr, "INFO - Found terminal variable %s\n", node->variable.name);
+            process_node(node, cs, scope);
+            break;
+        }
+        case AST_NUMBER: {
+            fprintf(stderr, "INFO - Found terminal number %f\n", node->number);
+            process_node(node, cs, scope);
+            break;
+        }
+        case AST_STRING: {
+            fprintf(stderr, "INFO - Found terminal string %s\n", node->string);
+            process_node(node, cs, scope);
             break;
         }
         case AST_BINARY_OP: {
@@ -793,7 +812,7 @@ bool semantic_analysis(ASTNode *node) {
             
             bool res = solve_constraints(&cs);
             // DEBUG to see final types clearly
-            //solve_constraints(&cs);
+            solve_constraints(&cs);
 
             // second round to get custom types
             node = transform_ast(node, scope); // embrace FLATness (transform the children)

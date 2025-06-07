@@ -67,7 +67,8 @@ typedef struct ASTNode {
         } binary_op;
         struct {
             char *name;
-            char **args;
+            char **args; // backwards compatibility
+            struct ASTNode **args_definitions;
             unsigned int arg_count;
             struct ASTNode *body;
         } function_def;

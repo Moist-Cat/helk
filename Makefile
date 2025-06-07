@@ -1,5 +1,6 @@
 CC=clang
 
+CFLAGS=-lm -g -Wall -Wextra -fsanitize=address,undefined
 CFLAGS=-lm -g -Wall -Wextra
 
 LEX_SOURCES=$(wildcard src/*.l) 
@@ -30,7 +31,7 @@ run: build runtime
 	llc -filetype=obj out.ll -o out.o
 	${CC} ${CFLAGS} out.o src/builtins.o -o out
 
-execute: hulk compile
+execute: compile
 	${CC} ${CFLAGS} hulk/script.ll src/builtins.o -o hulk/script && ./hulk/script
 
 runtime: $(HELPERS_OBJ)
@@ -55,7 +56,7 @@ build/comp: ${OBJECTS}
 	chmod 700 $@
 
 build: build/comp
-compile: build hulk
+compile: hulk build
 	./hulk/comp script.hulk > ./hulk/script.ll
 
 build_dir:

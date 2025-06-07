@@ -1,12 +1,4 @@
-function gcd(a, b) => while (min(max(a, 0), 1)) {
-    if (1) {
-        let m = a - b;
-        let b = a;
-        let a = m;
-    }
-    else {
-        0;
-    };
+function gcd(a, b) => while (a + 0) {
+    let a=a, m = a % b, b = a, a = m in a;
 };
-
-print(gcd(10, 2));
+print(gcd(4, 2));

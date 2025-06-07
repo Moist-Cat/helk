@@ -1,4 +1,4 @@
-function second(watashi_wa_ferdinand_von_ageir, b, c) => let d=b in d;
+function second(a, b, c) => let d=b in d;
 
 print(second(0, 0, 0));
 prints(second(0, "xd", 0));

@@ -157,9 +157,14 @@ ASTNode *create_ast_function_def(char *name, ASTNode *body, char **args, unsigne
     node->function_def.body = body;
 
     // shallow copy again
+    node->function_def.args_definitions = malloc(sizeof(ASTNode*) * arg_count);
     node->function_def.args = malloc(sizeof(ASTNode*) * arg_count);
     memcpy(node->function_def.args, args, sizeof(ASTNode*) * arg_count);
     node->function_def.arg_count = arg_count;
+
+    for (unsigned int i = 0; i < arg_count; i++) {
+        node->function_def.args_definitions[i] = create_ast_variable_def(args[i], NULL);
+    }
     return node;
 }
 

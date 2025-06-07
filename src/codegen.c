@@ -78,6 +78,49 @@ static void add_symbol(CodegenContext* ctx, const char* name, const char* temp, 
     ctx->symbols_size++;
 }
 
+CodegenContext* clone_codegen_context(const CodegenContext* original) {
+    if (original == NULL) {
+        return NULL;
+    }
+
+    // Allocate new context
+    CodegenContext* clone = malloc(sizeof(CodegenContext));
+    if (clone == NULL) {
+        return NULL;
+    }
+
+    // Shallow copy simple members
+    clone->output = original->output;
+    clone->temp_counter = original->temp_counter;
+    clone->label_counter = original->label_counter;
+    clone->_last_merge = original->_last_merge;
+
+    // Deep copy symbols array
+    clone->symbols_size = original->symbols_size;
+    if (original->symbols_size > 0) {
+        clone->symbols = malloc(original->symbols_size * sizeof(Symbol));
+        if (clone->symbols == NULL) {
+            free(clone);
+            return NULL;
+        }
+
+        // Copy each symbol, performing deep copies of strings
+        for (size_t i = 0; i < original->symbols_size; i++) {
+            clone->symbols[i].name = original->symbols[i].name ? strdup(original->symbols[i].name) : NULL;
+            clone->symbols[i].temp = original->symbols[i].temp ? strdup(original->symbols[i].temp) : NULL;
+            clone->symbols[i].previous_label_name = original->symbols[i].previous_label_name ? strdup(original->symbols[i].previous_label_name) : NULL;
+            clone->symbols[i].phi = original->symbols[i].phi ? strdup(original->symbols[i].phi) : NULL;
+            clone->symbols[i].label = original->symbols[i].label;
+            clone->symbols[i].previous_label = original->symbols[i].previous_label;
+            clone->symbols[i].node = original->symbols[i].node; // ASTNode doesn't need deep copy
+        }
+    } else {
+        clone->symbols = NULL;
+    }
+
+    return clone;
+}
+
 static const char* find_symbol(CodegenContext* ctx, const char* name) {
     for (size_t i = 0; i < ctx->symbols_size; i++) {
         if (strcmp(ctx->symbols[i].name, name) == 0) {
@@ -170,7 +213,7 @@ static char* get_call_args(CodegenContext* ctx, ASTNode** args, unsigned int arg
     return result;
 }
 
-static char* get_def_args(char** args, unsigned int arg_count) {
+static char* get_def_args(char** args, ASTNode** args_definitions, unsigned int arg_count) {
     if (arg_count == 0) return strdup("");
 
     char** temps = malloc(arg_count * sizeof(char*));
@@ -186,8 +229,14 @@ static char* get_def_args(char** args, unsigned int arg_count) {
     char* result = malloc(total_len + 1);
     char* ptr = result;
 
+    int written;
     for (size_t i = 0; i < arg_count; i++) {
-        int written = sprintf(ptr, "double %s%s%s", "%", temps[i], (i < arg_count-1) ? ", " : "");
+        if (args_definitions[i]->type_info.kind == TYPE_STRING) {
+            written = sprintf(ptr, "i8* %s%s%s", "%", temps[i], (i < arg_count-1) ? ", " : "");
+        }
+        else {
+            written = sprintf(ptr, "double %s%s%s", "%", temps[i], (i < arg_count-1) ? ", " : "");
+        }
         ptr += written;
     }
 
@@ -238,7 +287,7 @@ static char* gen_while_loop(CodegenContext* ctx, ASTNode* node) {
     emit(ctx, "  %%while_cond = fcmp one double %s, 0.000000e+00\n", cond_temp);
     emit(ctx, "  br i1 %%while_cond, label %%%s, label %%%s\n",
         body_label, end_label);
-    free(cond_temp);
+    //free(cond_temp);
 
     // End block
     emit(ctx, "%s:\n", end_label);
@@ -358,13 +407,17 @@ static char* gen_expr(CodegenContext* ctx, ASTNode* node) {
             return temp;
         }            
         case AST_VARIABLE: {
-            const char* var_temp = find_symbol(ctx, node->variable.name);
-            if (!var_temp) {
+            Symbol* symbol = fetch_symbol(ctx, node->variable.name);
+            if (!symbol) {
                 fprintf(stderr, "Could not find symbol %s!\n", node->variable.name);
-                return new_arg(node->variable.name);
+                // XXX do this before function calls dunce
+                char* temp = new_arg(node->variable.name);
+                add_symbol(ctx, node->variable_def.name, temp, node);
+
+                return temp;
             }
             emit(ctx, "  ; Load variable %s\n", node->variable.name);
-            return var_temp;
+            return symbol->temp;
         }
         case AST_VARIABLE_DEF: {
             Symbol* symbol = fetch_symbol(ctx, node->variable_def.name);
@@ -388,8 +441,10 @@ static char* gen_expr(CodegenContext* ctx, ASTNode* node) {
                     );
 
                     symbol->temp = gen_expr(ctx, node->variable_def.body);
-                    return symbol->temp;
-                    //return symbol->name;
+                    /// XXX reassign
+                    //emit(ctx, "  %s = fadd double %s, 0.000000e+00  ; Load variable\n", temp, symbol->temp);
+                    //return symbol->temp;
+                    return symbol->name;
                 }
                 t4 = gen_expr(ctx, node->variable_def.body);
 
@@ -436,6 +491,8 @@ static char* gen_expr(CodegenContext* ctx, ASTNode* node) {
                 type = node->type_info.name;
             }
 
+            // XXX clone symbol table
+            // add args
             if (arg_count > 0) {
                 emit(ctx, "  %s = call %s @%s(%s)\n", temp, type, node->function_call.name, call_args);
             }
@@ -586,23 +643,44 @@ void codegen_stmt(CodegenContext* ctx, ASTNode* node) {
     if (node->type == AST_FUNCTION_DEF) {
         // should ONLY contain functions after sem_anal
 
-        unsigned int arg_count = node->function_def.arg_count;
+        CodegenContext* fun_ctx = clone_codegen_context(ctx);
 
-        char* def_args = get_def_args(node->function_def.args, arg_count);
-        char* entry_label = new_label(ctx);
+        char* type;
 
-        if (arg_count > 0) {
-            emit(ctx, "\ndefine double @%s(%s) {\n", node->function_def.name, def_args);
+        if (node->type_info.kind == TYPE_STRING) {
+            type = "i8*";
         }
         else {
-            emit(ctx, "\ndefine double @%s() {\n", node->function_def.name);
+            type = "double";
         }
-        emit(ctx, "%s:\n", entry_label);
+        //printf("%d", node->type_info.kind);
+
+        unsigned int arg_count = node->function_def.arg_count;
+
+        for (unsigned int i = 0; i < arg_count; i++) {
+            char* temp = new_arg(node->function_def.args[i]);
+            add_symbol(ctx, temp, temp, node->function_def.args_definitions[i]);
+        }
+
+        char* def_args = get_def_args(
+            node->function_def.args,
+            node->function_def.args_definitions,
+            arg_count
+        );
+        char* entry_label = new_label(fun_ctx);
+
+        if (arg_count > 0) {
+            emit(fun_ctx, "\ndefine %s @%s(%s) {\n", type, node->function_def.name, def_args);
+        }
+        else {
+            emit(fun_ctx, "\ndefine %s @%s() {\n", type, node->function_def.name);
+        }
+        emit(fun_ctx, "%s:\n", entry_label);
         
 
-        char* result = gen_expr(ctx, node->function_def.body);
+        char* result = gen_expr(fun_ctx, node->function_def.body);
         if (result) {
-            emit(ctx, "  ret double %s\n", result);
+            emit(fun_ctx, "  ret %s %s\n", type, result);
             free(result);
         }
         else {
@@ -611,7 +689,7 @@ void codegen_stmt(CodegenContext* ctx, ASTNode* node) {
             exit(1);
         }
         
-        emit(ctx, "}\n");
+        emit(fun_ctx, "}\n");
     }
    else if (node->type == AST_TYPE_DEF) {
         // ... with types
@@ -799,8 +877,8 @@ void codegen_init(CodegenContext* ctx, FILE* output) {
 
 void codegen_cleanup(CodegenContext* ctx) {
     for (size_t i = 0; i < ctx->symbols_size; i++) {
-        free(ctx->symbols[i].name);
-        free(ctx->symbols[i].temp);
+        //free(ctx->symbols[i].name);
+        //free(ctx->symbols[i].temp);
     }
     free(ctx->symbols);
 }
