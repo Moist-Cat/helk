@@ -279,7 +279,7 @@ static char* gen_while_loop(CodegenContext* ctx, ASTNode* node) {
     emit(ctx, "%s:\n", body_label);
     gen_redefs(ctx, node->while_loop.body);
     char* body_temp = gen_expr(ctx, node->while_loop.body);
-    free(body_temp);
+    //free(body_temp);
 
     // Condition block
     char* cond_temp = gen_expr(ctx, node->while_loop.cond);
@@ -297,7 +297,7 @@ static char* gen_while_loop(CodegenContext* ctx, ASTNode* node) {
     emit(ctx, "  %s = fadd double 0.000000e+00, 0.000000e+00\n", result);
 
     // XXX verify this
-    ///fix_labels(ctx);
+    //fix_labels(ctx);
     return result;
 }
 
@@ -408,15 +408,11 @@ static char* gen_expr(CodegenContext* ctx, ASTNode* node) {
         }            
         case AST_VARIABLE: {
             Symbol* symbol = fetch_symbol(ctx, node->variable.name);
-            if (!symbol) {
-                fprintf(stderr, "Could not find symbol %s!\n", node->variable.name);
-                // XXX do this before function calls dunce
-                char* temp = new_arg(node->variable.name);
-                add_symbol(ctx, node->variable_def.name, temp, node);
-
-                return temp;
-            }
+            fprintf(stderr, "-> %s", symbol->temp);
             emit(ctx, "  ; Load variable %s\n", node->variable.name);
+            if (symbol->temp == NULL) {
+                exit(1);
+            }
             return symbol->temp;
         }
         case AST_VARIABLE_DEF: {
@@ -653,13 +649,19 @@ void codegen_stmt(CodegenContext* ctx, ASTNode* node) {
         else {
             type = "double";
         }
-        //printf("%d", node->type_info.kind);
 
+        char* entry_label = new_label(fun_ctx);
         unsigned int arg_count = node->function_def.arg_count;
 
         for (unsigned int i = 0; i < arg_count; i++) {
-            char* temp = new_arg(node->function_def.args[i]);
-            add_symbol(ctx, temp, temp, node->function_def.args_definitions[i]);
+            add_symbol(
+                fun_ctx,
+                node->function_def.args[i],
+                new_arg(
+                    node->function_def.args[i]
+                ),
+                node->function_def.args_definitions[i]
+            );
         }
 
         char* def_args = get_def_args(
@@ -667,7 +669,6 @@ void codegen_stmt(CodegenContext* ctx, ASTNode* node) {
             node->function_def.args_definitions,
             arg_count
         );
-        char* entry_label = new_label(fun_ctx);
 
         if (arg_count > 0) {
             emit(fun_ctx, "\ndefine %s @%s(%s) {\n", type, node->function_def.name, def_args);
@@ -676,9 +677,9 @@ void codegen_stmt(CodegenContext* ctx, ASTNode* node) {
             emit(fun_ctx, "\ndefine %s @%s() {\n", type, node->function_def.name);
         }
         emit(fun_ctx, "%s:\n", entry_label);
-        
 
         char* result = gen_expr(fun_ctx, node->function_def.body);
+
         if (result) {
             emit(fun_ctx, "  ret %s %s\n", type, result);
             free(result);
@@ -877,8 +878,8 @@ void codegen_init(CodegenContext* ctx, FILE* output) {
 
 void codegen_cleanup(CodegenContext* ctx) {
     for (size_t i = 0; i < ctx->symbols_size; i++) {
-        //free(ctx->symbols[i].name);
-        //free(ctx->symbols[i].temp);
+        free(ctx->symbols[i].name);
+        free(ctx->symbols[i].temp);
     }
     free(ctx->symbols);
 }
