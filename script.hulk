@@ -1,12 +1,26 @@
 type Point {
     x = 0;
     y = 0;
+
+    do(x) => 17 + x;
 };
 
 type Point2 inherits Point {
-    z = 1;
+    z = 0;
+
+    do(x) => x + 1;
 };
 
-let a = new Point2(3, 4, 5) in print(a.x);
-let b = new Point2(3, 4, 5) in print(b.y);
-let c = new Point2(3, 4, 5) in print(c.z);
+let a = new Point(3, 4) in let
+    c=print(a.x) in let
+    d=print(a.y) in let
+    e=print(a.y) in let
+    f=print(a.x) in 0;
+
+let b = new Point(1, 1) in print(b.do(9));
+
+let k = new Point2(1, 6, 9) in let
+    lol=print(k.do(1)) in let
+    lmao=print(k.x) in let
+    rofl=print(k.y) in let
+    exdee=print(k.z) in 0;
