@@ -1,14 +1,9 @@
 type Point {
-    x = "a";
-    y = 0;
-
     do(x) => 17 + x;
 };
 
 type Point2 inherits Point {
-    z = 0;
-
     do(x) => x + 1;
 };
 
-let a = new Point("blob", 1) in prints(a.x);
+let a = new Point();

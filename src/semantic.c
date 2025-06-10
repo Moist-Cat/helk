@@ -300,18 +300,7 @@ void process_method_call(
     ConstraintSystem* cs,
     SymbolTable* current_scope
 ) {
-    ASTNode* ref = symbol_table_lookup(current_scope, call->method_call.cls);
-    if (!ref || !ref->type_info.cls) {
-        fprintf(
-            stderr,
-            "WARNING - Could not access the class via the instance in %s.%s during type inference\n",
-            call->method_call.cls,
-            call->method_call.method
-        );
-        //exit(1);
-        return;
-    }
-    ASTNode* cls = symbol_table_lookup(current_scope, ref->type_info.cls);
+    ASTNode* cls = call->method_call.cls;
     fprintf(
         stderr,
         "INFO - Accessing method '%s' of %s during analysis\n",
@@ -626,7 +615,7 @@ void process_node(ASTNode* node, ConstraintSystem* cs, SymbolTable* current_scop
                 node->field_access.field
             );
             ASTNode* correct_field = malloc(sizeof(ASTNode*)*1);
-            int index = lookup_index(node, cls, current_scope, &correct_field);
+            lookup_index(node, cls, current_scope, &correct_field);
 
             add_constraint(cs, node, &correct_field->type_info);
             // XXX type inference
@@ -728,40 +717,19 @@ static ASTNode* transform_constructor(ASTNode* node) {
 // Transform method calls
 static ASTNode* transform_method_call(ASTNode* node, SymbolTable* scope) {
     // self
-    /*
     ASTNode** new_args = malloc((node->method_call.arg_count + 1) * sizeof(ASTNode*));
     for (size_t i = node->method_call.arg_count - 1; i > 0; i--) {
         new_args[i+1] = node->method_call.args[i];
     }
-    new_args[0] = ref;
-    */
-    // XXX repeated code
-    ASTNode* ref = symbol_table_lookup(scope, node->method_call.cls);
-    if (!ref || !ref->type_info.cls) {
-        fprintf(
-            stderr,
-            "WARNING - Could not access the class via the instance in %s.%s during transformation\n",
-            node->method_call.cls,
-            node->method_call.method
-        );
-        return node;
-    }
-    ASTNode* cls = symbol_table_lookup(scope, ref->type_info.cls);
-    fprintf(
-        stderr,
-        "INFO - Accessing method '%s' of %s during transformation\n",
-        node->method_call.method,
-        cls->type_info.cls
-    );
-    if (cls->type_info.cls == NULL) {
-        // no-op
-        return node;
-    }
+    new_args[0] = node->method_call.cls;
+    // no need to rely on the symbol table at all since
+    // the type was already inferred
 
-    char* mname = new_method(cls->type_info.cls, node);
+    char* mname = new_method(node->method_call.cls->type_info.cls, node);
     ASTNode* new_node = create_ast_function_call(
         mname,
-        node->method_call.args,
+        //node->method_call.args,
+        new_args,
         node->method_call.arg_count
     );
 

@@ -123,10 +123,11 @@ ASTNode *create_ast_field_access(char* cls, char* field) {
     return node;
 }
 
-ASTNode *create_ast_method_call(char* cls, char* method, ASTNode **args, unsigned int arg_count) {
+ASTNode *create_ast_method_call(ASTNode* cls, char* method, ASTNode **args, unsigned int arg_count) {
     ASTNode *node = malloc(sizeof(ASTNode));
     node->type = AST_METHOD_CALL;
-    node->method_call.cls = strdup(cls);
+
+    node->method_call.cls = cls;
     node->method_call.method = strdup(method);
 
     node->method_call.args = malloc(sizeof(ASTNode*) * arg_count);

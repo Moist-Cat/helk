@@ -4,3 +4,11 @@ Compute closure.
 
 > base; self
 
+> a.b
+
+We already know the type. Just assign a variable during sem anal or something
+
+(stuff + a).b()
+
+__c = suff + a
+__c.b()

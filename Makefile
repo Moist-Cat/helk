@@ -1,7 +1,7 @@
 CC=clang
 
-CFLAGS=-lm -g -Wall -Wextra -fsanitize=address,undefined
 CFLAGS=-lm -g -Wall -Wextra
+CFLAGS=-lm -g -Wall -Wextra -fsanitize=address,undefined
 
 LEX_SOURCES=$(wildcard src/*.l) 
 LEX_OBJECTS=$(patsubst %.l,%.c,${LEX_SOURCES}) $(patsubst %.l,%.h,${LEX_SOURCES})

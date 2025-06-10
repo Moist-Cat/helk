@@ -119,7 +119,7 @@ typedef struct ASTNode {
             struct ASTNode* default_value;
         } field_def;
         struct {
-            char* cls;
+            struct ASTNode* cls;
             char* method;
             struct ASTNode** args;
             unsigned int arg_count;
@@ -142,7 +142,7 @@ ASTNode* create_ast_type_def(char* name, char* base_type, ASTNode** members, uns
 ASTNode* create_ast_constructor(char* cls, ASTNode** args, unsigned int arg_count);
 ASTNode* create_ast_field_def(char* name, ASTNode* default_value);
 ASTNode* create_ast_field_access(char* cls, char* field);
-ASTNode* create_ast_method_call(char* cls, char* method, ASTNode** args, unsigned int arg_count);
+ASTNode* create_ast_method_call(ASTNode* cls, char* method, ASTNode** args, unsigned int arg_count);
 void free_ast(ASTNode *node);
 
 #endif

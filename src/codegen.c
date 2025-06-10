@@ -287,7 +287,7 @@ static char* gen_while_loop(CodegenContext* ctx, ASTNode* node) {
     // Body block
     emit(ctx, "%s:\n", body_label);
     gen_redefs(ctx, node->while_loop.body);
-    char* body_temp = gen_expr(ctx, node->while_loop.body);
+    gen_expr(ctx, node->while_loop.body);
     //free(body_temp);
 
     // Condition block

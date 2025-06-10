@@ -155,7 +155,18 @@ field_def:
     ;
 
 method_def:
-    identifier LPAREN decl_args RPAREN ARROW expression { $$ = create_ast_function_def($1, $6, $3.args, $3.count); free($1); free($3.args); }
+    identifier LPAREN decl_args RPAREN ARROW expression {
+        // self
+        ASTNode** new_args = malloc(($3.count + 1) * sizeof(char*));
+        for (size_t i = $3.count - 1; i > 0; i--) {
+            new_args[i+1] = $3.args[i];
+        }
+        new_args[0] = "self";
+        $$ = create_ast_function_def($1, $6, new_args, $3.count);
+        free($1);
+        free($3.args);
+        free(new_args);
+    }
     ;
 
 
@@ -226,7 +237,7 @@ expression: NUMBER              { $$ = create_ast_number($1); }
           | expression MOD expression { $$ = create_ast_binary_op($1, $3, OP_MOD); }
           | NEW identifier LPAREN call_args RPAREN  { $$ = create_ast_constructor($2, $4.args, $4.count); free($2); free($4.args); }  // types
           | identifier DOT identifier {$$ = create_ast_field_access($1, $3); free($1); free($3);}
-          | identifier DOT identifier LPAREN call_args RPAREN {$$ = create_ast_method_call($1, $3, $5.args, $5.count); free($1); free($3); free($5.args);}
+          | expression DOT identifier LPAREN call_args RPAREN {$$ = create_ast_method_call($1, $3, $5.args, $5.count); free($1); free($3); free($5.args);}
           |
     LET variable_def_list IN expression {
         $$ = create_ast_let_in($2.names, $2.values, $2.count, $4);
