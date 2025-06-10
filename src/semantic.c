@@ -11,6 +11,36 @@ size_t hash(const char* s) {
     return h;
 }
 
+ASTNode* lookup_method(char* name, ASTNode* cls) {
+    for (unsigned int i = 0; i < cls->type_decl.method_count; i++) {
+        if (strcmp(cls->type_decl.methods[i]->function_def.name, name) == 0) {
+            return cls->type_decl.methods[i];
+        }
+    }
+    fprintf(stderr, "No method called %s in %s\n", name, cls->type_decl.name);
+    exit(1);
+    return NULL;
+}
+
+static char* new_constructor(char* cls) {
+    char* temp = malloc(16 + 16);
+    sprintf(temp, "%s_constructor", cls);
+    return temp;
+}
+
+static char* new_instance_type(char* cls) {
+    char* temp = malloc(16 + 16);
+    sprintf(temp, "%%struct.%s*", cls);
+    return temp;
+}
+
+static char* new_method(char* cls, ASTNode* node) {
+    char* temp = malloc(16 + 16);
+    // NOTE add arg types
+    sprintf(temp, "%s_%s", cls, node->method_call.method);
+    return temp;
+}
+
 // type inference
 bool solve_constraints(ConstraintSystem* cs) {
     fprintf(stderr, "INFO - Solving constraints...\n");
@@ -172,6 +202,8 @@ void process_function_call(
 
     for(size_t i=0; i<call->function_call.arg_count; i++) {
         // Process argument expression
+        fprintf(stderr, "%d", call->function_call.args[i]->type);
+        // XXX could go in _sem_anal fun
         process_node(call->function_call.args[i], cs, func_scope);
 
         // Add constraint: arg_type == param_type
@@ -200,6 +232,33 @@ void process_function_call(
     if (function_def->type_info.kind == TYPE_UNKNOWN) {
         _semantic_analysis(function_def, cs, func_scope);
     }
+}
+void process_let_in(
+    ASTNode* node,
+    ConstraintSystem* cs,
+    SymbolTable* current_scope
+) {
+    fprintf(stderr, "Creating new scope for let-in\n");
+    //SymbolTable* let_scope = create_symbol_table(current_scope);
+    SymbolTable* let_scope = current_scope;
+
+    for(size_t i=0; i<node->let_in.var_count; i++) {
+        fprintf(
+            stderr,
+            "Adding parameter '%s' to symbol table for let-in (type %d)\n",
+            node->let_in.var_names[i],
+            node->let_in.var_values[i]->type_info.kind
+        );
+        symbol_table_add(
+            let_scope,
+            node->let_in.var_names[i],
+            node->let_in.var_values[i]
+        );
+        _semantic_analysis(node->let_in.var_values[i], cs, let_scope);
+    }
+
+    _semantic_analysis(node->let_in.body, cs, let_scope);
+    add_constraint(cs, node, &node->let_in.body->type_info);
 }
 
 void process_node(ASTNode* node, ConstraintSystem* cs, SymbolTable* current_scope) {
@@ -269,12 +328,6 @@ void process_node(ASTNode* node, ConstraintSystem* cs, SymbolTable* current_scop
                 cs, 
                 current_scope
             );
-
-            //TypeInfo *lit = malloc(sizeof(TypeInfo));
-            //lit->kind = TYPE_DOUBLE;
-            //lit->is_literal = true;
-
-            //add_constraint(cs, node, lit);
             break;
         }
         case AST_FUNCTION_DEF: {
@@ -307,7 +360,14 @@ void process_node(ASTNode* node, ConstraintSystem* cs, SymbolTable* current_scop
                 &node->variable_def.body->type_info);
             break;
         }
-        case AST_LET_IN: {break;}
+        case AST_LET_IN: {
+            process_let_in(
+                node,
+                cs, 
+                current_scope
+            );
+            break;
+        }
         case AST_WHILE_LOOP: {break;}
 
         case AST_NUMBER: {
@@ -333,6 +393,81 @@ void process_node(ASTNode* node, ConstraintSystem* cs, SymbolTable* current_scop
             lit->is_literal = true;
 
             add_constraint(cs, node, lit);
+            break;
+        }
+        case AST_CONSTRUCTOR: {
+            TypeInfo *lit = malloc(sizeof(TypeInfo));
+            lit->kind = hash(node->constructor.cls);
+            lit->is_literal = true;
+
+            node->type_info.cls = strdup(node->constructor.cls);
+            node->type_info.name = new_instance_type(node->constructor.cls);
+
+            add_constraint(cs, node, lit);
+            break;
+        }
+        case AST_METHOD_CALL: {
+            ASTNode* ref = symbol_table_lookup(current_scope, node->method_call.cls);
+            if (!ref || !ref->type_info.cls) {
+                fprintf(
+                    stderr,
+                    "WARNING - Could not access the class via the instance in %s.%s during type inference\n",
+                    node->method_call.cls,
+                    node->method_call.method
+                );
+                break;
+            }
+            ASTNode* cls = symbol_table_lookup(current_scope, ref->type_info.cls);
+            fprintf(
+                stderr,
+                "INFO - Accessing metod '%s' of %s during analysis\n",
+                node->method_call.method,
+                cls->type_info.cls
+            );
+            if (cls->type_info.cls == NULL) {
+                // no-op
+                exit(1);
+                break;
+            }
+            ASTNode* method_def = lookup_method(node->method_call.method, cls);
+
+            if (method_def->type_info.kind == 0) {
+                fprintf(stderr, "AIEEEEEEEE\n");
+                exit(1);
+            }
+
+            node->type_info.kind = method_def->type_info.kind;
+            break;
+        }
+
+        case AST_TYPE_DEF: {
+            symbol_table_add(current_scope, node->type_decl.name, node);
+            node->type_info.cls = node->type_decl.name;
+            break;
+        }
+        case AST_FIELD_ACCESS: {
+            ASTNode* ref = symbol_table_lookup(current_scope, node->field_access.cls);
+            if (!ref || !ref->type_info.cls) {
+                fprintf(
+                    stderr,
+                    "WARNING - Could not access the class via the instance in %s.%s\n",
+                    node->field_access.cls,
+                    node->field_access.field
+                );
+                break;
+            }
+            ASTNode* cls = symbol_table_lookup(current_scope, ref->type_info.cls);
+            fprintf(
+                stderr,
+                "INFO - Accessing classs instance '%s' field '%s'\n",
+                cls->type_info.cls,
+                node->field_access.field
+            );
+            for (unsigned int i = 0; i < cls->type_decl.field_count; i++) {
+                if (strcmp(cls->type_decl.fields[i]->field_def.name, node->field_access.field) == 0) {
+                    node->field_access.pos = i;
+                }
+            }
             break;
         }
     }
@@ -364,6 +499,19 @@ static FlattenResult flatten(ASTNode* node) {
                     node->let_in.var_names[i],
                     val.expr
                 );
+                if (node->let_in.var_values[i]->type_info.kind == 0) {
+                    fprintf(
+                        stderr,
+                        "WARNING - Type=%d (UNKOWN) for node type %d in let-in\n",
+                        node->let_in.var_values[i]->type_info.kind,
+                        node->let_in.var_values[i]->type
+                    );
+                    //exit(1);
+                }
+                def->type_info.kind = node->let_in.var_values[i]->type_info.kind;
+                def->type_info.name = node->let_in.var_values[i]->type_info.name;
+                def->type_info.cls = node->let_in.var_values[i]->type_info.cls;
+
                 res.stmts = realloc(res.stmts, (res.stmt_count + 1) * sizeof(ASTNode*));
                 res.stmts[res.stmt_count++] = def;
             }
@@ -384,25 +532,6 @@ static FlattenResult flatten(ASTNode* node) {
 }
 
 // Transform object creation
-static char* new_constructor(char* cls) {
-    char* temp = malloc(16 + 16);
-    sprintf(temp, "%s_constructor", cls);
-    return temp;
-}
-
-static char* new_instance_type(char* cls) {
-    char* temp = malloc(16 + 16);
-    sprintf(temp, "%%struct.%s*", cls);
-    return temp;
-}
-
-static char* new_method(char* cls, ASTNode* node) {
-    char* temp = malloc(16 + 16);
-    // NOTE add arg types
-    sprintf(temp, "%s_%s", cls, node->method_call.method);
-    return temp;
-}
-
 static ASTNode* transform_constructor(ASTNode* node) {
     // Transform constructor arguments
     char* cname = new_constructor(node->constructor.cls);
@@ -411,6 +540,7 @@ static ASTNode* transform_constructor(ASTNode* node) {
         node->constructor.args,
         node->constructor.arg_count
     );
+    // XXX delet
     new_node->type_info.cls = strdup(node->constructor.cls);
     new_node->type_info.name = new_instance_type(node->constructor.cls);
     new_node->type_info.kind = hash(cname);
@@ -424,11 +554,20 @@ static ASTNode* transform_constructor(ASTNode* node) {
 
 // Transform method calls
 static ASTNode* transform_method_call(ASTNode* node, SymbolTable* scope) {
+    // self
+    /*
+    ASTNode** new_args = malloc((node->method_call.arg_count + 1) * sizeof(ASTNode*));
+    for (size_t i = node->method_call.arg_count - 1; i > 0; i--) {
+        new_args[i+1] = node->method_call.args[i];
+    }
+    new_args[0] = ref;
+    */
+    // XXX repeated code
     ASTNode* ref = symbol_table_lookup(scope, node->method_call.cls);
     if (!ref || !ref->type_info.cls) {
         fprintf(
             stderr,
-            "WARNING - Could not access the class via the instance in %s.%s\n",
+            "WARNING - Could not access the class via the instance in %s.%s during transformation\n",
             node->method_call.cls,
             node->method_call.method
         );
@@ -437,10 +576,14 @@ static ASTNode* transform_method_call(ASTNode* node, SymbolTable* scope) {
     ASTNode* cls = symbol_table_lookup(scope, ref->type_info.cls);
     fprintf(
         stderr,
-        "INFO - Accessing metod '%s' of %s\n",
+        "INFO - Accessing method '%s' of %s during transformation\n",
         node->method_call.method,
         cls->type_info.cls
     );
+    if (cls->type_info.cls == NULL) {
+        // no-op
+        return node;
+    }
 
     char* mname = new_method(cls->type_info.cls, node);
     ASTNode* new_node = create_ast_function_call(
@@ -448,9 +591,6 @@ static ASTNode* transform_method_call(ASTNode* node, SymbolTable* scope) {
         node->method_call.args,
         node->method_call.arg_count
     );
-    // XXX resolve type 
-    new_node->type_info.kind = 1;
-    new_node->type_info.is_literal = false;
 
     return new_node;
 }
@@ -531,9 +671,45 @@ ASTNode* transform_ast(ASTNode* node, SymbolTable* scope) {
             node = transform_constructor(node);
             break;
         }
+        case AST_TYPE_DEF: {
+            fprintf(stderr, "INFO - Found type def %s\n", node->type_decl.name);
+            // XXX double
+            for (size_t i = 0; i < node->type_decl.method_count; i++) {
+                node->type_decl.fields[i] = transform_ast(node->type_decl.fields[i], scope);
+            }
+            for (size_t i = 0; i < node->type_decl.field_count; i++) {
+                node->type_decl.fields[i] = transform_ast(node->type_decl.fields[i], scope);
+            }
+
+            if (node->type_decl.base_type) {
+                fprintf(
+                    stderr,
+                    "INFO - Found child class '%s' of '%s'\n",
+                    node->type_decl.name,
+                    node->type_decl.base_type
+                );
+                ASTNode* parent = symbol_table_lookup(scope, node->type_decl.base_type);
+
+                inherit(node, parent);
+            }
+            char **cargs = malloc(sizeof(char*)*node->type_decl.field_count);
+            for (unsigned int i = 0; i < node->type_decl.field_count; i++) {
+                cargs[i] = "[param]";
+            }
+            char *cname = new_constructor(node->type_decl.name);
+            ASTNode* constructor = create_ast_function_def(cname, NULL, cargs, node->type_decl.field_count);
+
+            constructor->type_info.name = "CLASS_DEF";
+            constructor->type_info.kind = hash(cname);
+            constructor->type_info.cls = "CLASS_DEF";
+
+            symbol_table_add(scope, cname, constructor);
+            break;
+        }
         case AST_METHOD_CALL: {
             node = transform_method_call(node, scope);
         }
+
         default:
             break;
 
@@ -706,8 +882,16 @@ void _semantic_analysis(ASTNode *node, ConstraintSystem* cs, SymbolTable* scope)
             _semantic_analysis(node->function_def.body, cs, scope);
             break;
         }
+        case AST_LET_IN: {
+            //for (size_t i = 0; i < node->let_in.var_count; i++) {
+            //    _semantic_analysis(node->let_in.var_values[i], cs, scope);
+            //}
+            //_semantic_analysis(node->let_in.body, cs, scope);
+            break;
+        }
         case AST_FUNCTION_CALL: {
             fprintf(stderr, "INFO - Performing sem_anal into function call %s\n", node->function_call.name);
+            // XXX args too
             for (size_t i = 0; i < node->block.stmt_count; i++) {
                 _semantic_analysis(node->function_call.args[i], cs, scope);
             }
@@ -734,65 +918,41 @@ void _semantic_analysis(ASTNode *node, ConstraintSystem* cs, SymbolTable* scope)
             break;
         }
         case AST_BINARY_OP: {
+            fprintf(stderr, "INFO - Found binary op\n");
             _semantic_analysis(node->binary_op.left, cs, scope);
             _semantic_analysis(node->binary_op.right, cs, scope);
             break;
         }
         case AST_CONDITIONAL: {
+            fprintf(stderr, "INFO - Found conditional\n");
             _semantic_analysis(node->conditional.hypothesis, cs, scope);
             _semantic_analysis(node->conditional.thesis, cs, scope);
             _semantic_analysis(node->conditional.antithesis, cs, scope);
             break;
         }
+        case AST_CONSTRUCTOR: {
+            fprintf(stderr, "INFO - Found constructor for %s\n", node->constructor.cls);
+            break;
+        }
         case AST_TYPE_DEF: {
+            fprintf(stderr, "INFO - Found type def %s\n", node->type_decl.name);
             // XXX double
-            if (node->type_decl.base_type) {
-                fprintf(
-                    stderr,
-                    "INFO - Found child class '%s' of '%s'\n",
-                    node->type_decl.name,
-                    node->type_decl.base_type
-                );
-                ASTNode* parent = symbol_table_lookup(scope, node->type_decl.base_type);
-
-                inherit(node, parent);
+            for (size_t i = 0; i < node->type_decl.method_count; i++) {
+                _semantic_analysis(node->type_decl.fields[i], cs, scope);
             }
-            char **cargs = malloc(sizeof(char*)*node->type_decl.field_count);
-            for (unsigned int i = 0; i < node->type_decl.field_count; i++) {
-                cargs[i] = "[param]";
+            for (size_t i = 0; i < node->type_decl.field_count; i++) {
+                _semantic_analysis(node->type_decl.methods[i], cs, scope);
             }
-            char *cname = new_constructor(node->type_decl.name);
-            ASTNode* constructor = create_ast_function_def(cname, NULL, cargs, node->type_decl.field_count);
-            constructor->type_info.kind = hash(cname);
-            symbol_table_add(scope, cname, constructor);
-            // add class as well
-            symbol_table_add(scope, node->type_decl.name, node);
-            node->type_info.cls = node->type_decl.name;
             break;
         }
         case AST_FIELD_ACCESS: {
-            ASTNode* ref = symbol_table_lookup(scope, node->field_access.cls);
-            if (!ref->type_info.cls) {
-                fprintf(
-                    stderr,
-                    "WARNING - Could not access the class via the instance in %s.%s",
-                    node->field_access.cls,
-                    node->field_access.field
-                );
-                break;
-            }
-            ASTNode* cls = symbol_table_lookup(scope, ref->type_info.cls);
             fprintf(
                 stderr,
-                "INFO - Accessing classs instance '%s' field '%s'\n",
-                cls->type_info.cls,
+                "INFO - Found field acess %s.%s\n",
+                node->field_access.cls,
                 node->field_access.field
             );
-            for (unsigned int i = 0; i < cls->type_decl.field_count; i++) {
-                if (strcmp(cls->type_decl.fields[i]->field_def.name, node->field_access.field) == 0) {
-                    node->field_access.pos = i;
-                }
-            }
+            //process_node(node, cs, scope);
             break;
         }
         default:
@@ -806,13 +966,24 @@ bool semantic_analysis(ASTNode *node) {
         case AST_BLOCK: {
             sa_block(node); // reorganize code in functions (transform the parent)
             SymbolTable* scope = create_symbol_table(NULL);
-            node = transform_ast(node, scope); // embrace FLATness (transform the children)
             ConstraintSystem cs = {NULL, 0, 0};
+            _semantic_analysis(node, &cs, scope); // symbol table
+            // dump old CS to reduce runtime
+            free(cs.constraints);
+            cs.constraints = NULL;
+            cs.count = 0;
+            cs.capacity = 0;
+
             _semantic_analysis(node, &cs, scope); // type checking (read-only)
             
-            bool res = solve_constraints(&cs);
-            // DEBUG to see final types clearly
+            bool res;
             solve_constraints(&cs);
+            _semantic_analysis(node, &cs, scope); // type checking (again)
+
+            solve_constraints(&cs);
+
+            // DEBUG to see final types clearly
+            res = solve_constraints(&cs);
 
             // second round to get custom types
             node = transform_ast(node, scope); // embrace FLATness (transform the children)

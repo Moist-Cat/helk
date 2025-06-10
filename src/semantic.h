@@ -34,6 +34,7 @@ typedef struct SymbolTable {
     struct SymbolTable* parent;
 } SymbolTable;
 
+void inherit(ASTNode* node, ASTNode* parent);
 void _semantic_analysis(ASTNode *node, ConstraintSystem* cs, SymbolTable* scope);
 bool semantic_analysis(ASTNode *node);
 void symbol_table_add(SymbolTable* st, const char* name, ASTNode* node);

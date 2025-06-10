@@ -1,4 +1,0 @@
-function gcd(a, b) => while (a + 0) {
-    let a=a, m = a % b, b = a, a = m in a;
-};
-print(gcd(4, 2));

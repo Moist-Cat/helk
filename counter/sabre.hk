@@ -1,0 +1,7 @@
+type Animal {
+
+    echo() => "sabre";
+};
+
+let a = new Animal();
+print(a.echo());

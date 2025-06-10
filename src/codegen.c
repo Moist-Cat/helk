@@ -828,6 +828,15 @@ void _codegen_declarations(CodegenContext* ctx, ASTNode *node) {
             _codegen_declarations(ctx, node->function_def.body);
             break;
         }
+        case AST_TYPE_DEF: {
+            // constructor && 
+            for (size_t i = 0; i < node->type_decl.method_count; i++) {
+                _codegen_declarations(ctx, node->type_decl.methods[i]);
+            }
+            for (size_t i = 0; i < node->type_decl.field_count; i++) {
+                _codegen_declarations(ctx, node->type_decl.fields[i]);
+            }
+        }
         default: {
             break;         
         }

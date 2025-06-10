@@ -1,9 +1,12 @@
-function gcd(a, b) => while (a) {
-    let m = a % print(b), b = a, a = m in a;
+type Point {
+    x = 0;
+    y = 0;
 };
 
-function f(a, b) => while (a) {
-    let a = a - 1 in print(a);
+type Point2 inherits Point {
+    z = 1;
 };
-f(5, "");
-gcd(14, 6);
+
+let a = new Point2(3, 4, 5) in print(a.x);
+let b = new Point2(3, 4, 5) in print(b.y);
+let c = new Point2(3, 4, 5) in print(c.z);

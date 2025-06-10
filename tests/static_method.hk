@@ -6,6 +6,4 @@ type Point {
 };
 let a = new Point(3, 4) in let c=print(a.x), d=print(a.y), e=print(a.y), f=print(a.x) in 0;
 
-let b = new Point(1, 1);
-
-print(b.do(3));
+let b = new Point(1, 1) in print(b.do(3));
