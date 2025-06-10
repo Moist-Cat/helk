@@ -816,7 +816,7 @@ ASTNode* transform_ast(ASTNode* node, SymbolTable* scope) {
             fprintf(stderr, "INFO - Found type def %s\n", node->type_decl.name);
             // XXX double
             for (size_t i = 0; i < node->type_decl.method_count; i++) {
-                node->type_decl.fields[i] = transform_ast(node->type_decl.fields[i], scope);
+                node->type_decl.methods[i] = transform_ast(node->type_decl.methods[i], scope);
             }
             for (size_t i = 0; i < node->type_decl.field_count; i++) {
                 node->type_decl.fields[i] = transform_ast(node->type_decl.fields[i], scope);
@@ -1117,19 +1117,38 @@ void _semantic_analysis(ASTNode *node, ConstraintSystem* cs, SymbolTable* scope)
             for (size_t i = 0; i < node->type_decl.field_count; i++) {
                 _semantic_analysis(node->type_decl.fields[i], cs, scope);
             }
+            // no new global symbols inside methods nor class definitions
+            // so we let the processor handle it
             break;
         }
         case AST_FIELD_DEF: {
+            fprintf(
+                stderr,
+                "INFO - Found field def %s\n",
+                node->field_def.name
+            );
             _semantic_analysis(node->field_def.default_value, cs, scope);
             break;
         }
         case AST_FIELD_ACCESS: {
+            // XXX
             fprintf(
                 stderr,
                 "INFO - Found field acess %s.%s\n",
                 node->field_access.cls,
                 node->field_access.field
             );
+            break;
+        }
+
+        case AST_METHOD_CALL: {
+            fprintf(
+                stderr,
+                "INFO - Found method call %d.%s\n",
+                node->method_call.cls->type,
+                node->method_call.method
+            );
+            _semantic_analysis(node->method_call.cls, cs, scope);
             break;
         }
         default:

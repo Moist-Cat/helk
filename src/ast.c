@@ -139,6 +139,7 @@ ASTNode *create_ast_method_call(ASTNode* cls, char* method, ASTNode **args, unsi
 ASTNode *create_ast_variable_def(char *name, ASTNode *body) {
     ASTNode *node = malloc(sizeof(ASTNode));
     node->type = AST_VARIABLE_DEF;
+    fprintf(stderr, "%p\n", name);
     node->variable_def.name = strdup(name);
     node->variable_def.body = body;
     return node;

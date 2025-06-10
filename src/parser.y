@@ -157,15 +157,18 @@ field_def:
 method_def:
     identifier LPAREN decl_args RPAREN ARROW expression {
         // self
-        ASTNode** new_args = malloc(($3.count + 1) * sizeof(char*));
-        for (size_t i = $3.count - 1; i > 0; i--) {
-            new_args[i+1] = $3.args[i];
+        size_t old_count = $3.count;  // Original arg count
+        size_t new_count = old_count + 1;  // Include "self"
+        char** new_args = malloc(new_count * sizeof(char*));
+        new_args[0] = strdup("self");  // Add "self" at index 0
+
+        // Copy all original args into new_args[1..new_count-1]
+        for (size_t i = 0; i < old_count; i++) {
+            new_args[i + 1] = $3.args[i];  // Reuse old string pointers
         }
-        new_args[0] = "self";
-        $$ = create_ast_function_def($1, $6, new_args, $3.count);
-        free($1);
-        free($3.args);
-        free(new_args);
+
+        $$ = create_ast_function_def($1, $6, new_args, new_count);
+        free($3.args);  // Free the old array container (not the strings)
     }
     ;
 
