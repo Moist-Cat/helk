@@ -11,6 +11,15 @@ static void emit(CodegenContext* ctx, const char* format, ...) {
     va_end(args);
 }
 
+char* joink_type(ASTNode* node) {
+    if (node->type_info.kind == TYPE_STRING) {
+        return "i8*";
+    }
+    else {
+        return "double";
+    }
+}
+
 static char* new_temp(CodegenContext* ctx) {
     char* temp = malloc(16);
     sprintf(temp, "%%t%d", ctx->temp_counter++);
@@ -261,7 +270,7 @@ static char* get_constructor_args(ASTNode** args, unsigned int arg_count) {
     char* ptr = result;
 
     for (size_t i = 0; i < arg_count; i++) {
-        int written = sprintf(ptr, "double %s%s%s", "%", temps[i], (i < arg_count-1) ? ", " : "");
+        int written = sprintf(ptr, "%s %s%s%s", joink_type(args[i]), "%", temps[i], (i < arg_count-1) ? ", " : "");
         ptr += written;
     }
 
@@ -521,8 +530,10 @@ static char* gen_expr(CodegenContext* ctx, ASTNode* node) {
             );
             emit(
                 ctx,
-                "  %s = load double, double* %s_ptr\n",
+                "  %s = load %s, %s* %s_ptr\n",
                 temp,
+                joink_type(node),
+                joink_type(node),
                 temp
             );
             return temp;
@@ -724,8 +735,10 @@ void codegen_stmt(CodegenContext* ctx, ASTNode* node) {
             // XXX double
             emit(
                 ctx,
-                "  store double %%%s, double* %%%s_ptr\n",
+                "  store %s %%%s, %s* %%%s_ptr\n",
+                joink_type(node->type_decl.fields[i]),
                 node->type_decl.fields[i]->field_def.name,
+                joink_type(node->type_decl.fields[i]),
                 node->type_decl.fields[i]->field_def.name
             );
         }

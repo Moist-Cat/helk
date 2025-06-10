@@ -55,7 +55,7 @@ typedef struct ASTNode {
         struct {
             char* name;
             char* base_type; // NULL if no inheritance
-            struct ASTNode** fields;
+            struct ASTNode** fields; // Array of AST_VARIABLE_DEF nodes
             unsigned int field_count;
             struct ASTNode** methods; // Array of AST_FUNCTION_DEF nodes
             unsigned int method_count;
