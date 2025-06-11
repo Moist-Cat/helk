@@ -40,10 +40,11 @@ bool solve_constraints(ConstraintSystem* cs) {
         for(size_t i=0; i<cs->count; i++) {
             TypeConstraint* c = &cs->constraints[i];
             TypeInfo* t = c->expected;
+            fprintf(stderr, "%p %p %p\n", t, c, c->node);
             int expected = t->kind;
             int actual = c->node->type_info.kind;
 
-            //fprintf(stderr, "INFO - Expected: %d ; Actual: %d ; Node: %d\n\n", expected, actual, c->node->type);
+            fprintf(stderr, "INFO - Expected: %d ; Actual: %d ; Node: %d\n\n", expected, actual, c->node->type);
 
             if (c->node->type == AST_FUNCTION_CALL) {
                 fprintf(stderr, "For function %s\n", c->node->function_call.name);
@@ -70,7 +71,7 @@ bool solve_constraints(ConstraintSystem* cs) {
                expected != actual) {
                // XXX
                fprintf(stderr, "ERROR - Literal type mismatch %d\n", c->node->type);
-               //exit(1);
+               exit(1);
                return false;
             }
         }
@@ -266,6 +267,9 @@ void process_function_call(
         _semantic_analysis(call->function_call.args[i], cs, func_scope);
 
         // Add constraint: arg_type == param_type
+        if (!function_def->function_def.args_definitions[i]) {
+            exit(1);
+        }
         add_constraint(
             cs,
             function_def->function_def.args_definitions[i],
@@ -565,7 +569,7 @@ void process_node(ASTNode* node, ConstraintSystem* cs, SymbolTable* current_scop
 
             lit->name = new_instance_type(node->constructor.cls);
             lit->cls = strdup(node->constructor.cls);
-            lit->kind = hash(node->constructor.cls);
+            lit->kind = (int) hash(node->constructor.cls);
             lit->is_literal = true;
 
             add_constraint(cs, node, lit);
@@ -590,6 +594,7 @@ void process_node(ASTNode* node, ConstraintSystem* cs, SymbolTable* current_scop
                     "INFO - Found method %s",
                     node->type_decl.methods[i]->function_def.name
                 );
+                // to define these people
                 _semantic_analysis(
                     node->type_decl.methods[i]->function_def.body,
                     cs,
@@ -603,6 +608,30 @@ void process_node(ASTNode* node, ConstraintSystem* cs, SymbolTable* current_scop
                         &node->function_def.body->type_info
                     );
                 }
+                // add constraints for self
+                fprintf(
+                    stderr,
+                    "INFO - Adding constraint for self param for method %s.%s (%d) (%d args)\n",
+                    node->type_decl.name,
+                    node->type_decl.methods[i]->function_def.name,
+                    hash(node->type_decl.name),
+                    node->type_decl.methods[i]->function_def.arg_count
+                );
+                TypeInfo *lit = malloc(sizeof(TypeInfo));
+
+                lit->name = new_instance_type(node->type_decl.name);
+                lit->cls = strdup(node->type_decl.name);
+                lit->kind = (int) hash(node->type_decl.name);
+                lit->is_literal = true;
+
+                fprintf(stderr, "%s\n", node->type_decl.name);
+                fprintf(stderr, "self param %p\n", node->type_decl.methods[i]->function_def.args_definitions[i]);
+
+                add_constraint(
+                    cs,
+                    node->type_decl.methods[i]->function_def.args_definitions[i],
+                    lit
+                );
             }
 
             break;
@@ -633,11 +662,10 @@ void process_node(ASTNode* node, ConstraintSystem* cs, SymbolTable* current_scop
                 cls->type_info.cls,
                 node->field_access.field
             );
-            ASTNode* correct_field = malloc(sizeof(ASTNode*)*1);
+            ASTNode* correct_field;
             lookup_index(node, cls, current_scope, &correct_field);
 
             add_constraint(cs, node, &correct_field->type_info);
-            // XXX type inference
             break;
         }
         case AST_FIELD_DEF: {
@@ -735,7 +763,7 @@ static ASTNode* transform_constructor(ASTNode* node) {
     // XXX delet
     new_node->type_info.cls = strdup(node->constructor.cls);
     new_node->type_info.name = new_instance_type(node->constructor.cls);
-    new_node->type_info.kind = hash(cname);
+    new_node->type_info.kind = (int) hash(cname);
     new_node->type_info.is_literal = true;
 
     // dealloc
@@ -899,7 +927,7 @@ ASTNode* transform_ast(ASTNode* node, SymbolTable* scope) {
             );
 
             constructor->type_info.name = "CLASS_DEF";
-            constructor->type_info.kind = hash(cname);
+            constructor->type_info.kind = (int) hash(cname);
             constructor->type_info.cls = "CLASS_DEF";
 
             symbol_table_add(scope, cname, constructor);
@@ -912,11 +940,9 @@ ASTNode* transform_ast(ASTNode* node, SymbolTable* scope) {
         case AST_FIELD_ACCESS: {
             break;
         }
-
-        default:
+        default: {
             break;
-
-        // XXX Handle other node types similarly
+        }
     }
 
     // Then apply transformation to current node

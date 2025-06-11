@@ -15,8 +15,15 @@ char* joink_type(ASTNode* node) {
     if (node->type_info.kind == TYPE_STRING) {
         return "i8*";
     }
-    else {
+    else if (node->type_info.kind == TYPE_DOUBLE) {
         return "double";
+    }
+    else if (node->type_info.kind == TYPE_UNKNOWN) {
+        fprintf(stderr, "WARNING - Type of node %d unknown during codegen", node->type);
+        return "double";
+    }
+    else {
+        return node->type_info.name;
     }
 }
 
@@ -169,7 +176,7 @@ static char* get_constructor_types(CodegenContext* ctx, ASTNode** args, unsigned
 
     // Generate code for all arguments first
     for (size_t i = 0; i < arg_count; i++) {
-        total_len += 9; // XXX "double , " per argument
+        total_len += strlen(joink_type(args[i])) + 2;
     }
 
     // Build arguments string
@@ -177,13 +184,7 @@ static char* get_constructor_types(CodegenContext* ctx, ASTNode** args, unsigned
     char* ptr = result;
 
     for (size_t i = 0; i < arg_count; i++) {
-        int written;
-        if (args[i]->type_info.kind == TYPE_STRING) {
-            written = sprintf(ptr, "i8*%s", (i < arg_count-1) ? ", " : "");
-        }
-        else {
-            written = sprintf(ptr, "double%s", (i < arg_count-1) ? ", " : "");
-        }
+        int written = sprintf(ptr, "%s%s", joink_type(args[i]), (i < arg_count-1) ? ", " : "");
         ptr += written;
     }
 
@@ -200,7 +201,8 @@ static char* get_call_args(CodegenContext* ctx, ASTNode** args, unsigned int arg
     // Generate code for all arguments first
     for (size_t i = 0; i < arg_count; i++) {
         temps[i] = gen_expr(ctx, args[i]);
-        total_len += strlen(temps[i]) + 9; // XXX "double , " per argument
+        char* type = joink_type(args[i]);
+        total_len += strlen(temps[i]) + strlen(type) + 3;
     }
 
     // Build arguments string
@@ -208,13 +210,7 @@ static char* get_call_args(CodegenContext* ctx, ASTNode** args, unsigned int arg
     char* ptr = result;
 
     for (size_t i = 0; i < arg_count; i++) {
-        int written;
-        if (args[i]->type_info.kind == TYPE_STRING) {
-            written = sprintf(ptr, "i8* %s%s", temps[i], (i < arg_count-1) ? ", " : "");
-        }
-        else {
-            written = sprintf(ptr, "double %s%s", temps[i], (i < arg_count-1) ? ", " : "");
-        }
+        int written = sprintf(ptr, "%s %s%s", joink_type(args[i]), temps[i], (i < arg_count-1) ? ", " : "");
         ptr += written;
     }
 
@@ -231,7 +227,8 @@ static char* get_def_args(char** args, ASTNode** args_definitions, unsigned int 
     // Generate code for all arguments first
     for (size_t i = 0; i < arg_count; i++) {
         temps[i] = args[i];
-        total_len += strlen(temps[i]) + 9; // XXX "double , " per argument
+        char* type = joink_type(args[i]);
+        total_len += strlen(temps[i]) + strlen(type) + 4;
     }
 
     // Build arguments string
@@ -240,12 +237,7 @@ static char* get_def_args(char** args, ASTNode** args_definitions, unsigned int 
 
     int written;
     for (size_t i = 0; i < arg_count; i++) {
-        if (args_definitions[i]->type_info.kind == TYPE_STRING) {
-            written = sprintf(ptr, "i8* %s%s%s", "%", temps[i], (i < arg_count-1) ? ", " : "");
-        }
-        else {
-            written = sprintf(ptr, "double %s%s%s", "%", temps[i], (i < arg_count-1) ? ", " : "");
-        }
+        int written = sprintf(ptr, "%s %s%s%s", joink_type(args_definitions[i]) , "%", temps[i], (i < arg_count-1) ? ", " : "");
         ptr += written;
     }
 
@@ -262,7 +254,8 @@ static char* get_constructor_args(ASTNode** args, unsigned int arg_count) {
     // Generate code for all arguments first
     for (size_t i = 0; i < arg_count; i++) {
         temps[i] = args[i]->field_def.name;
-        total_len += strlen(temps[i]) + 9; // XXX "double , " per argument
+        char* type = joink_type(args[i]);
+        total_len += strlen(temps[i]) + strlen(type) + 5;
     }
 
     // Build arguments string
@@ -425,16 +418,8 @@ static char* gen_expr(CodegenContext* ctx, ASTNode* node) {
         }
         case AST_VARIABLE_DEF: {
             Symbol* symbol = fetch_symbol(ctx, node->variable_def.name);
-            char* type;
+            char* type = joink_type(node);
             char* t4;
-
-            // XXX do not reassign strings!
-            if (node->type_info.kind == TYPE_STRING) {
-                type = "i8*";
-            }
-            else {
-                type = "double";
-            }
 
             if (symbol) {
                 if (symbol->label == ctx->label_counter - 1) {
@@ -475,25 +460,7 @@ static char* gen_expr(CodegenContext* ctx, ASTNode* node) {
             size_t arg_count = node->function_call.arg_count;
 
             char* call_args = get_call_args(ctx, node->function_call.args, arg_count);
-            char* type;
-
-            if (node->type_info.kind == TYPE_STRING) {
-                type = "i8*";
-            }
-            else if (node->type_info.kind == TYPE_DOUBLE) {
-                type = "double";
-            }
-            else if (node->type_info.kind == TYPE_UNKNOWN) {
-                fprintf(
-                    stderr,
-                    "WARNING - Type for node type=%d is unknown during codegen\n",
-                    node->type
-                );
-                type = "double";
-            }
-            else {
-                type = node->type_info.name;
-            }
+            char* type = joink_type(node);
 
             // XXX clone symbol table
             // add args

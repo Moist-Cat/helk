@@ -67,7 +67,7 @@ int main(int argc, char** argv) {
 
     bool res = semantic_analysis(ast);
 
-    if (res || 1) {
+    if (res) {
         codegen(&ctx, ast);
         codegen_cleanup(&ctx);
     }
