@@ -239,11 +239,23 @@ expression: NUMBER              { $$ = create_ast_number($1); }
           | expression EXP expression { $$ = create_ast_binary_op($1, $3, OP_EXP); }
           | expression MOD expression { $$ = create_ast_binary_op($1, $3, OP_MOD); }
           | identifier DOT identifier LPAREN call_args RPAREN {
+
+                // self
+                size_t old_count = $5.count;  // Original arg count
+                size_t new_count = old_count + 1;  // Include "self"
+                ASTNode** new_args = malloc(new_count * sizeof(ASTNode*));
+                new_args[0] = create_ast_variable($1);  // Add "self" at index 0
+
+                // Copy all original args into new_args[1..new_count-1]
+                for (size_t i = 0; i < old_count; i++) {
+                    new_args[i + 1] = $5.args[i];  // Reuse old pointers
+                }
+
                 $$ = create_ast_method_call(
                     create_ast_variable($1),
                     $3,
-                    $5.args,
-                    $5.count
+                    new_args,
+                    new_count
                 );
                 free($1);
                 free($3);

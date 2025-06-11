@@ -1,6 +1,8 @@
 #ifndef AST_H
 #define AST_H
 
+#include <stddef.h>
+
 typedef enum {
     OP_ADD,
     OP_SUB,
@@ -10,7 +12,7 @@ typedef enum {
     OP_MOD
 } ASTBinaryOp;
 
-typedef enum {
+typedef enum: size_t {
     TYPE_UNKNOWN, // unkown first since we default to zero
     TYPE_DOUBLE,
     TYPE_STRING,

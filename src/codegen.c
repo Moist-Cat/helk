@@ -19,7 +19,7 @@ char* joink_type(ASTNode* node) {
         return "double";
     }
     else if (node->type_info.kind == TYPE_UNKNOWN) {
-        fprintf(stderr, "WARNING - Type of node %d unknown during codegen", node->type);
+        fprintf(stderr, "WARNING - Type of node %d unknown during codegen\n", node->type);
         return "double";
     }
     else {
@@ -227,7 +227,7 @@ static char* get_def_args(char** args, ASTNode** args_definitions, unsigned int 
     // Generate code for all arguments first
     for (size_t i = 0; i < arg_count; i++) {
         temps[i] = args[i];
-        char* type = joink_type(args[i]);
+        char* type = joink_type(args_definitions[i]);
         total_len += strlen(temps[i]) + strlen(type) + 4;
     }
 
@@ -235,7 +235,6 @@ static char* get_def_args(char** args, ASTNode** args_definitions, unsigned int 
     char* result = malloc(total_len + 1);
     char* ptr = result;
 
-    int written;
     for (size_t i = 0; i < arg_count; i++) {
         int written = sprintf(ptr, "%s %s%s%s", joink_type(args_definitions[i]) , "%", temps[i], (i < arg_count-1) ? ", " : "");
         ptr += written;
@@ -418,7 +417,6 @@ static char* gen_expr(CodegenContext* ctx, ASTNode* node) {
         }
         case AST_VARIABLE_DEF: {
             Symbol* symbol = fetch_symbol(ctx, node->variable_def.name);
-            char* type = joink_type(node);
             char* t4;
 
             if (symbol) {
@@ -438,6 +436,7 @@ static char* gen_expr(CodegenContext* ctx, ASTNode* node) {
                 t4 = gen_expr(ctx, node->variable_def.body);
 
                 // no-op to make t3 = t4 since we don't know how many operations we will make
+                // XXX double
                 emit(ctx, "  %s = fadd double %s, 0.000000e+00  ; Load variable\n", symbol->phi, t4);
 
                 symbol->temp = symbol->phi;
@@ -502,6 +501,8 @@ static char* gen_expr(CodegenContext* ctx, ASTNode* node) {
                 joink_type(node),
                 temp
             );
+            fprintf(stderr, "%d %d %d", symbol->node->type_info.kind, node->field_access.pos);
+            //exit(1);
             return temp;
         }
         case AST_BLOCK: {

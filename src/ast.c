@@ -14,7 +14,7 @@ ASTNode *create_ast_block(ASTNode **block, unsigned int stmt_count) {
 
     node->block.stmt_count = stmt_count;
 
-    node->type_info.kind = 0;
+    node->type_info.kind = TYPE_UNKNOWN;
     node->type_info.name = NULL;
     node->type_info.cls = NULL;
     node->type_info.is_literal = false;
@@ -36,7 +36,7 @@ ASTNode* create_ast_let_in(char **names, ASTNode **values, unsigned int count, A
     node->let_in.var_count = count;
     node->let_in.body = body;
 
-    node->type_info.kind = 0;
+    node->type_info.kind = TYPE_UNKNOWN;
     node->type_info.name = NULL;
     node->type_info.cls = NULL;
     node->type_info.is_literal = false;
@@ -52,7 +52,7 @@ ASTNode* create_ast_while_loop(ASTNode* cond, ASTNode* body) {
     node->while_loop.cond = cond;
     node->while_loop.body = body;
 
-    node->type_info.kind = 0;
+    node->type_info.kind = TYPE_UNKNOWN;
     node->type_info.name = NULL;
     node->type_info.cls = NULL;
     node->type_info.is_literal = false;
@@ -71,7 +71,7 @@ ASTNode* create_ast_conditional(ASTNode* hypothesis, ASTNode* thesis, ASTNode* a
     node->conditional.thesis = thesis;
     node->conditional.antithesis = antithesis;
 
-    node->type_info.kind = 0;
+    node->type_info.kind = TYPE_UNKNOWN;
     node->type_info.name = NULL;
     node->type_info.cls = NULL;
     node->type_info.is_literal = false;
@@ -86,7 +86,7 @@ ASTNode* create_ast_field_def(char* name, ASTNode* default_value) {
     node->field_def.name = strdup(name);
     node->field_def.default_value = default_value;
 
-    node->type_info.kind = 0;
+    node->type_info.kind = TYPE_UNKNOWN;
     node->type_info.name = NULL;
     node->type_info.cls = NULL;
     node->type_info.is_literal = false;
@@ -126,7 +126,7 @@ ASTNode* create_ast_type_def(char* name, char* base_type,
         }
     }
 
-    node->type_info.kind = 0;
+    node->type_info.kind = TYPE_UNKNOWN;
     node->type_info.name = NULL;
     node->type_info.cls = NULL;
     node->type_info.is_literal = false;
@@ -144,7 +144,7 @@ ASTNode *create_ast_constructor(char* cls, ASTNode **args, unsigned int arg_coun
     memcpy(node->constructor.args, args, sizeof(ASTNode*) * arg_count);
     node->constructor.arg_count = arg_count;
 
-    node->type_info.kind = 0;
+    node->type_info.kind = TYPE_UNKNOWN;
     node->type_info.name = NULL;
     node->type_info.cls = NULL;
     node->type_info.is_literal = false;
@@ -158,7 +158,7 @@ ASTNode *create_ast_field_access(char* cls, char* field) {
     node->field_access.cls = strdup(cls);
     node->field_access.field = strdup(field);
 
-    node->type_info.kind = 0;
+    node->type_info.kind = TYPE_UNKNOWN;
     node->type_info.name = NULL;
     node->type_info.cls = NULL;
     node->type_info.is_literal = false;
@@ -182,7 +182,7 @@ ASTNode *create_ast_method_call(ASTNode* cls, char* method, ASTNode **args, unsi
     }
     node->method_call.arg_count = arg_count;
 
-    node->type_info.kind = 0;
+    node->type_info.kind = TYPE_UNKNOWN;
     node->type_info.name = NULL;
     node->type_info.cls = NULL;
     node->type_info.is_literal = false;
@@ -196,7 +196,7 @@ ASTNode *create_ast_variable_def(char *name, ASTNode *body) {
     node->variable_def.name = strdup(name);
     node->variable_def.body = body;
 
-    node->type_info.kind = 0;
+    node->type_info.kind = TYPE_UNKNOWN;
     node->type_info.name = NULL;
     node->type_info.cls = NULL;
     node->type_info.is_literal = false;
@@ -209,7 +209,7 @@ ASTNode *create_ast_variable(char *name) {
     node->type = AST_VARIABLE;
     node->variable.name = strdup(name);
 
-    node->type_info.kind = 0;
+    node->type_info.kind = TYPE_UNKNOWN;
     node->type_info.name = NULL;
     node->type_info.cls = NULL;
     node->type_info.is_literal = false;
@@ -233,7 +233,7 @@ ASTNode *create_ast_function_def(char *name, ASTNode *body, char **args, unsigne
         node->function_def.args_definitions[i] = create_ast_variable_def(args[i], NULL);
     }
 
-    node->type_info.kind = 0;
+    node->type_info.kind = TYPE_UNKNOWN;
     node->type_info.name = NULL;
     node->type_info.cls = NULL;
     node->type_info.is_literal = false;
@@ -251,7 +251,7 @@ ASTNode *create_ast_function_call(char *name, ASTNode **args, unsigned int arg_c
     memcpy(node->function_call.args, args, sizeof(ASTNode*) * arg_count);
     node->function_call.arg_count = arg_count;
 
-    node->type_info.kind = 0;
+    node->type_info.kind = TYPE_UNKNOWN;
     node->type_info.name = NULL;
     node->type_info.cls = NULL;
     node->type_info.is_literal = false;
@@ -267,7 +267,7 @@ ASTNode *create_ast_number(double value) {
     node->type = AST_NUMBER;
     node->number = value;
 
-    node->type_info.kind = 0;
+    node->type_info.kind = TYPE_UNKNOWN;
     node->type_info.name = NULL;
     node->type_info.cls = NULL;
     node->type_info.is_literal = false;
@@ -282,7 +282,7 @@ ASTNode *create_ast_string(char* ptr) {
     node->type = AST_STRING;
     node->string = strdup(ptr);
 
-    node->type_info.kind = 0;
+    node->type_info.kind = TYPE_UNKNOWN;
     node->type_info.name = NULL;
     node->type_info.cls = NULL;
     node->type_info.is_literal = false;
@@ -297,7 +297,7 @@ ASTNode *create_ast_binary_op(ASTNode *left, ASTNode *right, ASTBinaryOp op) {
     node->binary_op.right = right;
     node->binary_op.op = op;
 
-    node->type_info.kind = 0;
+    node->type_info.kind = TYPE_UNKNOWN;
     node->type_info.name = NULL;
     node->type_info.cls = NULL;
     node->type_info.is_literal = false;
