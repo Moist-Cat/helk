@@ -60,7 +60,6 @@ int main(int argc, char** argv) {
 
     ASTNode* ast;
     if (parse(data, &ast) != 0) {
-        fprintf(stderr, "Parse error\n");
         free(data);
         return 1;
     }
@@ -68,7 +67,7 @@ int main(int argc, char** argv) {
 
     bool res = semantic_analysis(ast);
 
-    if (res) {
+    if (res || 1) {
         codegen(&ctx, ast);
         codegen_cleanup(&ctx);
     }

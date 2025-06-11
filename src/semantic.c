@@ -43,8 +43,7 @@ bool solve_constraints(ConstraintSystem* cs) {
             int expected = t->kind;
             int actual = c->node->type_info.kind;
 
-            // XXX
-            //fprintf(stderr, "Expected: %d ; Actual: %d ; Node: %d\n\n", expected, actual, c->node->type);
+            //fprintf(stderr, "INFO - Expected: %d ; Actual: %d ; Node: %d\n\n", expected, actual, c->node->type);
 
             if (c->node->type == AST_FUNCTION_CALL) {
                 fprintf(stderr, "For function %s\n", c->node->function_call.name);
@@ -70,7 +69,7 @@ bool solve_constraints(ConstraintSystem* cs) {
                actual != TYPE_UNKNOWN &&
                expected != actual) {
                // XXX
-               //fprintf(stderr, "ERROR - Literal type mismatch %d %s\n", c->node->type, c->node->variable.name);
+               fprintf(stderr, "ERROR - Literal type mismatch %d\n", c->node->type);
                //exit(1);
                return false;
             }
@@ -264,7 +263,6 @@ void process_function_call(
 
     for(size_t i=0; i<call->function_call.arg_count; i++) {
         // Process argument expression
-        fprintf(stderr, "%d", call->function_call.args[i]->type);
         _semantic_analysis(call->function_call.args[i], cs, func_scope);
 
         // Add constraint: arg_type == param_type
@@ -300,24 +298,38 @@ void process_method_call(
     ConstraintSystem* cs,
     SymbolTable* current_scope
 ) {
-    ASTNode* cls = call->method_call.cls;
-    fprintf(
-        stderr,
-        "INFO - Accessing method '%s' of %s during analysis\n",
-        call->method_call.method,
-        cls->type_info.cls
-    );
+    ASTNode* ref = call->method_call.cls;
+    if (!ref || !ref->type_info.cls) {
+        fprintf(
+            stderr,
+            "WARNING - Could not access the class via the instance in %d.%s\n",
+            ref->type,
+            call->method_call.method
+        );
+        return;
+    }
+    fprintf(stderr, "%p",ref->type_info.cls);
+    ASTNode* cls = symbol_table_lookup(current_scope, ref->type_info.cls);
+
     if (cls->type_info.cls == NULL) {
         // no-op
         fprintf(
             stderr,
-            "ERROR - Class %s not found for method %s",
+            "ERROR - Class %s not found for method %s\n",
             cls->type_decl.name,
             call->method_call.method
         );
-        exit(1);
+
         return;
     }
+    /*
+    fprintf(
+        stderr,
+        "INFO - Accessing method '%s' of %d during analysis\n",
+        call->method_call.method,
+        cls->type_info.cls
+    );
+    */
 
     ASTNode* function_def = lookup_method(call->method_call.method, cls, current_scope);
 
@@ -339,9 +351,15 @@ void process_method_call(
     SymbolTable* func_scope = current_scope;
 
     // 3. Process arguments and add to scope
-    if(call->method_call.arg_count != function_def->function_def.arg_count) {
-        fprintf(stderr, "Argument count mismatch for '%s'\n",
-                    call->method_call.method);
+    // NOTE (+1) self is implicit 
+    if(call->method_call.arg_count + 1 != (function_def->function_def.arg_count)) {
+        fprintf(
+            stderr,
+            "ERROR - Argument count mismatch for '%s' (%d vs %d)\n",
+            call->method_call.method,
+            call->method_call.arg_count,
+            function_def->function_def.arg_count + 1
+        );
         exit(1);
         return;
     }
@@ -544,11 +562,11 @@ void process_node(ASTNode* node, ConstraintSystem* cs, SymbolTable* current_scop
         }
         case AST_CONSTRUCTOR: {
             TypeInfo *lit = malloc(sizeof(TypeInfo));
+
+            lit->name = new_instance_type(node->constructor.cls);
+            lit->cls = strdup(node->constructor.cls);
             lit->kind = hash(node->constructor.cls);
             lit->is_literal = true;
-
-            node->type_info.cls = strdup(node->constructor.cls);
-            node->type_info.name = new_instance_type(node->constructor.cls);
 
             add_constraint(cs, node, lit);
             break;
@@ -594,6 +612,7 @@ void process_node(ASTNode* node, ConstraintSystem* cs, SymbolTable* current_scop
                 add_constraint(cs, node,
                     &node->function_def.body->type_info);
             }
+            break;
         }
 
         case AST_FIELD_ACCESS: {
@@ -654,25 +673,26 @@ static FlattenResult flatten(ASTNode* node) {
                         node->let_in.var_names[i]
                     );
                 }
-                append_stmts(&res, val.stmts, val.stmt_count);
+                else {
+                    append_stmts(&res, val.stmts, val.stmt_count);
+                }
 
                 // Create variable definition
                 ASTNode* def = create_ast_variable_def(
                     node->let_in.var_names[i],
                     val.expr
                 );
-                if (node->let_in.var_values[i]->type_info.kind == 0) {
+                if (val.expr->type_info.kind == 0) {
                     fprintf(
                         stderr,
                         "WARNING - Type=%d (UNKOWN) for node type %d in let-in\n",
                         node->let_in.var_values[i]->type_info.kind,
                         node->let_in.var_values[i]->type
                     );
-                    //exit(1);
                 }
-                def->type_info.kind = node->let_in.var_values[i]->type_info.kind;
-                def->type_info.name = node->let_in.var_values[i]->type_info.name;
-                def->type_info.cls = node->let_in.var_values[i]->type_info.cls;
+                def->type_info.kind = val.expr->type_info.kind;
+                def->type_info.name = val.expr->type_info.name;
+                def->type_info.cls = val.expr->type_info.cls;
 
                 res.stmts = realloc(res.stmts, (res.stmt_count + 1) * sizeof(ASTNode*));
                 res.stmts[res.stmt_count++] = def;
@@ -680,7 +700,17 @@ static FlattenResult flatten(ASTNode* node) {
 
             // Process body
             FlattenResult body = flatten(node->let_in.body);
-            append_stmts(&res, body.stmts, body.stmt_count);
+            
+            if (body.stmts == NULL) {
+                fprintf(
+                    stderr,
+                    "WARNING - NULL detected inside let-in body"
+                );
+            }
+            else {
+                append_stmts(&res, body.stmts, body.stmt_count);
+            }
+
             res.expr = body.expr;
             break;
         }
@@ -717,11 +747,30 @@ static ASTNode* transform_constructor(ASTNode* node) {
 // Transform method calls
 static ASTNode* transform_method_call(ASTNode* node, SymbolTable* scope) {
     // self
-    ASTNode** new_args = malloc((node->method_call.arg_count + 1) * sizeof(ASTNode*));
-    for (size_t i = node->method_call.arg_count - 1; i > 0; i--) {
+    fprintf(stderr, "INFO - Transforming method call\n");
+    fprintf(stderr, "INFO - Adding self\n");
+    unsigned int new_count = node->method_call.arg_count + 1;
+    unsigned int old_count = node->method_call.arg_count;
+    ASTNode** new_args = malloc(new_count * sizeof(ASTNode*));
+    new_args[0] = node->method_call.cls;
+
+    for (unsigned int i = 0; i < old_count; i++) {
         new_args[i+1] = node->method_call.args[i];
     }
-    new_args[0] = node->method_call.cls;
+
+    fprintf(
+        stderr,
+        "INFO - Now we have %d args\n",
+        new_count
+    );
+    // XXX seems to rely on undefined behaviour
+    // the lifetime of the string varies
+    fprintf(
+        stderr,
+        "INFO - Self type %d %s\n",
+        node->method_call.cls->type_info.kind,
+        node->method_call.cls->type_info.cls
+    );
     // no need to rely on the symbol table at all since
     // the type was already inferred
 
@@ -730,8 +779,12 @@ static ASTNode* transform_method_call(ASTNode* node, SymbolTable* scope) {
         mname,
         //node->method_call.args,
         new_args,
-        node->method_call.arg_count
+        new_count
     );
+
+    new_node->type_info.kind = node->type_info.kind;
+    new_node->type_info.name = node->type_info.name;
+    new_node->type_info.cls = node->type_info.cls;
 
     return new_node;
 }

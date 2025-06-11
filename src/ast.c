@@ -149,6 +149,9 @@ ASTNode *create_ast_variable(char *name) {
     ASTNode *node = malloc(sizeof(ASTNode));
     node->type = AST_VARIABLE;
     node->variable.name = strdup(name);
+
+    // avoid errors during memory sanitizing
+    node->type_info.cls = NULL;
     return node;
 }
 

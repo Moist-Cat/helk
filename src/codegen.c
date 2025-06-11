@@ -417,7 +417,6 @@ static char* gen_expr(CodegenContext* ctx, ASTNode* node) {
         }            
         case AST_VARIABLE: {
             Symbol* symbol = fetch_symbol(ctx, node->variable.name);
-            fprintf(stderr, "-> %s", symbol->temp);
             emit(ctx, "  ; Load variable %s\n", node->variable.name);
             if (symbol->temp == NULL) {
                 exit(1);
@@ -821,6 +820,7 @@ void _codegen_declarations(CodegenContext* ctx, ASTNode *node) {
 
         case AST_FUNCTION_CALL: {
             for (size_t i = 0; i < node->function_call.arg_count; i++) {
+                fprintf(stderr, "%s %p", node->function_call.name, node->function_call.args[i]);
                 _codegen_declarations(ctx, node->function_call.args[i]);
             }
             break;
@@ -849,6 +849,7 @@ void _codegen_declarations(CodegenContext* ctx, ASTNode *node) {
             for (size_t i = 0; i < node->type_decl.field_count; i++) {
                 _codegen_declarations(ctx, node->type_decl.fields[i]);
             }
+            break;
         }
         default: {
             break;         

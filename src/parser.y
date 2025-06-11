@@ -238,9 +238,19 @@ expression: NUMBER              { $$ = create_ast_number($1); }
           | expression DIVIDE expression { $$ = create_ast_binary_op($1, $3, OP_DIV); }
           | expression EXP expression { $$ = create_ast_binary_op($1, $3, OP_EXP); }
           | expression MOD expression { $$ = create_ast_binary_op($1, $3, OP_MOD); }
+          | identifier DOT identifier LPAREN call_args RPAREN {
+                $$ = create_ast_method_call(
+                    create_ast_variable($1),
+                    $3,
+                    $5.args,
+                    $5.count
+                );
+                free($1);
+                free($3);
+                free($5.args);
+            }
           | NEW identifier LPAREN call_args RPAREN  { $$ = create_ast_constructor($2, $4.args, $4.count); free($2); free($4.args); }  // types
           | identifier DOT identifier {$$ = create_ast_field_access($1, $3); free($1); free($3);}
-          | expression DOT identifier LPAREN call_args RPAREN {$$ = create_ast_method_call($1, $3, $5.args, $5.count); free($1); free($3); free($5.args);}
           |
     LET variable_def_list IN expression {
         $$ = create_ast_let_in($2.names, $2.values, $2.count, $4);
@@ -286,21 +296,22 @@ int parse(char *text, ASTNode **node)
     // Parse using Bison.
     yyscan_t scanner;
     yylex_init(&scanner);
+
+    YYLTYPE loc;
+    loc.first_line = 1;
+    loc.first_column = 1;
+    loc.last_line = 1;
+    loc.last_column = 1;
+
     YY_BUFFER_STATE buffer = yy_scan_string(text, scanner);
     int rc = yyparse(scanner);
     yy_delete_buffer(buffer, scanner);
     yylex_destroy(scanner);
 
-    //char *error;
-
-    //yyerror(scanner, error);
-    
-    // If parse was successful, return root node.
     if(rc == 0) {
         *node = root;
         return 0;
     }
-    // Otherwise return error.
     else {
         return -1;
     }
