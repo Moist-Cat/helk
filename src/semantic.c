@@ -11,7 +11,6 @@ size_t hash(const char* s) {
     return h;
 }
 
-
 static char* new_constructor(char* cls) {
     char* temp = malloc(16 + 16 + 16);
     sprintf(temp, "%s_constructor", cls);
@@ -29,6 +28,14 @@ static char* new_method(char* cls, ASTNode* node) {
     // NOTE add arg types
     sprintf(temp, "%s_%s", cls, node->method_call.method);
     return temp;
+}
+
+void coerce(ASTNode* node) {
+    for (unsigned int j = 0; j < node->type_decl.method_count; j++) {
+        node->type_decl.methods[j]->function_def.args_definitions[0]->type_info.name = new_instance_type(node->type_decl.name);
+        node->type_decl.methods[j]->function_def.args_definitions[0]->type_info.cls = strdup(node->type_decl.name);
+        node->type_decl.methods[j]->function_def.args_definitions[0]->type_info.kind = hash(node->type_decl.name);
+    }
 }
 
 // type inference
@@ -308,9 +315,17 @@ void process_function_call(
 
 void process_method_call(
     ASTNode* call,
-    ConstraintSystem* cs,
+    ConstraintSystem* _cs,
     SymbolTable* current_scope
 ) {
+    // do not modify external constraints
+    ConstraintSystem* cs = malloc(sizeof(ConstraintSystem));
+    cs->count = _cs->count;
+    cs->capacity = _cs->capacity;
+
+    cs->constraints = malloc(_cs->capacity * sizeof(TypeConstraint));
+    cs->constraints = memcpy(cs->constraints, _cs->constraints, _cs->capacity * sizeof(TypeConstraint));
+
     ASTNode* ref = call->method_call.cls;
     if (!ref || !ref->type_info.cls) {
         fprintf(
@@ -337,7 +352,7 @@ void process_method_call(
     }
     fprintf(
         stderr,
-        "INFO - Accessing method '%s' of %d during analysis\n",
+        "INFO - Accessing method '%s' of %s during analysis\n",
         call->method_call.method,
         cls->type_info.cls
     );
@@ -391,11 +406,13 @@ void process_method_call(
         // Avoid adding constraints for self
         // self is passed implicitly so we will get an
         // error otherwise
-        add_constraint(
-            cs,
-            function_def->function_def.args_definitions[i],
-            &call->method_call.args[i]->type_info
-        );
+        if (i != 0) {
+            add_constraint(
+                cs,
+                function_def->function_def.args_definitions[i],
+                &call->method_call.args[i]->type_info
+            );
+        }
 
         // Add parameter to symbol table
         fprintf(
@@ -921,6 +938,8 @@ ASTNode* transform_ast(ASTNode* node, SymbolTable* scope) {
             for (size_t i = 0; i < node->type_decl.field_count; i++) {
                 node->type_decl.fields[i] = transform_ast(node->type_decl.fields[i], scope);
             }
+
+            coerce(node);
 
             if (node->type_decl.base_type) {
                 fprintf(

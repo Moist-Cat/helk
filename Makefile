@@ -32,7 +32,7 @@ run: build runtime
 	${CC} ${CFLAGS} out.o src/builtins.o -o out
 
 execute: compile
-	${CC} ${CFLAGS} hulk/script.ll src/builtins.o -o hulk/script && ./hulk/script
+	${CC} ${CFLAGS} hulk/script.ll src/builtins.o -o hulk/script && hulk/script
 
 runtime: $(HELPERS_OBJ)
 
