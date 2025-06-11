@@ -252,8 +252,7 @@ void process_function_call(
 
     // 2. Create new scope for parameters
     fprintf(stderr, "Creating new scope for function %s\n", call->function_call.name);
-    //SymbolTable* func_scope = create_symbol_table(current_scope);
-    SymbolTable* func_scope = current_scope;
+    SymbolTable* func_scope = create_symbol_table(current_scope);
 
     // 3. Process arguments and add to scope
     if(call->function_call.arg_count != function_def->function_def.arg_count) {
@@ -353,8 +352,8 @@ void process_method_call(
 
     // 2. Create new scope for parameters
     fprintf(stderr, "Creating new scope for method %s\n", call->method_call.method);
-    //SymbolTable* func_scope = create_symbol_table(current_scope);
-    SymbolTable* func_scope = current_scope;
+    SymbolTable* func_scope = create_symbol_table(current_scope);
+    //SymbolTable* func_scope = current_scope;
 
     // 3. Process arguments and add to scope
     // NOTE (+1) self is implicit 
@@ -411,8 +410,7 @@ void process_let_in(
     SymbolTable* current_scope
 ) {
     fprintf(stderr, "Creating new scope for let-in\n");
-    //SymbolTable* let_scope = create_symbol_table(current_scope);
-    SymbolTable* let_scope = current_scope;
+    SymbolTable* let_scope = create_symbol_table(current_scope);
 
     for(size_t i=0; i<node->let_in.var_count; i++) {
         fprintf(
