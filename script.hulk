@@ -1,5 +1,20 @@
 type Point {
+    x = 0;
+    y = 0;
+
+    do(x) => 17 + x;
+
     constant() => 1000;
 };
 
+type Point2 inherits Point {
+    z = 0;
+
+    do(x) => x + 1;
+};
+
+let a = new Point(0, 0);
+let b = new Point2(0, 0, 0);
+
+print(a.constant());
 print(b.constant());

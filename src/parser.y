@@ -249,7 +249,11 @@ expression: NUMBER              { $$ = create_ast_number($1); }
                 free($3);
                 free($5.args);
             }
-          | NEW identifier LPAREN call_args RPAREN  { $$ = create_ast_constructor($2, $4.args, $4.count); free($2); free($4.args); }  // types
+          | NEW identifier LPAREN call_args RPAREN  {
+                $$ = create_ast_constructor($2, $4.args, $4.count);
+                free($2);
+                free($4.args);
+            }  // types
           | identifier DOT identifier {$$ = create_ast_field_access($1, $3); free($1); free($3);}
           |
     LET variable_def_list IN expression {

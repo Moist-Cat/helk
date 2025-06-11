@@ -173,8 +173,13 @@ ASTNode *create_ast_method_call(ASTNode* cls, char* method, ASTNode **args, unsi
     node->method_call.cls = cls;
     node->method_call.method = strdup(method);
 
-    node->method_call.args = malloc(sizeof(ASTNode*) * arg_count);
-    memcpy(node->method_call.args, args, sizeof(ASTNode*) * arg_count);
+    if (arg_count != 0) {
+        node->method_call.args = malloc(sizeof(ASTNode*) * arg_count);
+        memcpy(node->method_call.args, args, sizeof(ASTNode*) * arg_count);
+    }
+    else {
+        node->method_call.args = NULL;
+    }
     node->method_call.arg_count = arg_count;
 
     node->type_info.kind = 0;
@@ -188,7 +193,6 @@ ASTNode *create_ast_method_call(ASTNode* cls, char* method, ASTNode **args, unsi
 ASTNode *create_ast_variable_def(char *name, ASTNode *body) {
     ASTNode *node = malloc(sizeof(ASTNode));
     node->type = AST_VARIABLE_DEF;
-    fprintf(stderr, "%p\n", name);
     node->variable_def.name = strdup(name);
     node->variable_def.body = body;
 

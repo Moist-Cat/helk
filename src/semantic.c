@@ -13,19 +13,19 @@ size_t hash(const char* s) {
 
 
 static char* new_constructor(char* cls) {
-    char* temp = malloc(16 + 16);
+    char* temp = malloc(16 + 16 + 16);
     sprintf(temp, "%s_constructor", cls);
     return temp;
 }
 
 static char* new_instance_type(char* cls) {
-    char* temp = malloc(16 + 16);
+    char* temp = malloc(16 + 16 + 16);
     sprintf(temp, "%%struct.%s*", cls);
     return temp;
 }
 
 static char* new_method(char* cls, ASTNode* node) {
-    char* temp = malloc(16 + 16);
+    char* temp = malloc(16 + 16 + 16);
     // NOTE add arg types
     sprintf(temp, "%s_%s", cls, node->method_call.method);
     return temp;
@@ -40,7 +40,7 @@ bool solve_constraints(ConstraintSystem* cs) {
         for(size_t i=0; i<cs->count; i++) {
             TypeConstraint* c = &cs->constraints[i];
             TypeInfo* t = c->expected;
-            fprintf(stderr, "%p %p %p\n", t, c, c->node);
+            fprintf(stderr, "%d\n", c->node->type);
             int expected = t->kind;
             int actual = c->node->type_info.kind;
 
@@ -284,9 +284,11 @@ void process_function_call(
             function_def->function_def.name,
             call->function_call.args[i]->type_info.kind
         );
-        symbol_table_add(func_scope,
-                        function_def->function_def.args[i],
-                        function_def->function_def.args_definitions[i]);
+        symbol_table_add(
+            func_scope,
+            function_def->function_def.args[i],
+            function_def->function_def.args_definitions[i]
+        );
     }
 
     // 4. Process return type constraint
@@ -368,7 +370,8 @@ void process_method_call(
         return;
     }
 
-    for(size_t i=0; i<call->method_call.arg_count; i++) {
+    // +1 because of self again
+    for(size_t i=1; i<call->method_call.arg_count; i++) {
         // Process argument expression
         fprintf(stderr, "%d", call->method_call.args[i]->type);
         _semantic_analysis(call->method_call.args[i], cs, func_scope);
@@ -615,7 +618,8 @@ void process_node(ASTNode* node, ConstraintSystem* cs, SymbolTable* current_scop
                     node->type_decl.name,
                     node->type_decl.methods[i]->function_def.name,
                     hash(node->type_decl.name),
-                    node->type_decl.methods[i]->function_def.arg_count
+                    node->type_decl.methods[i]->function_def.arg_count,
+                    node->type_decl.methods[i]->function_def.args[i]
                 );
                 TypeInfo *lit = malloc(sizeof(TypeInfo));
 
@@ -624,12 +628,17 @@ void process_node(ASTNode* node, ConstraintSystem* cs, SymbolTable* current_scop
                 lit->kind = (int) hash(node->type_decl.name);
                 lit->is_literal = true;
 
+                if (node->type_decl.methods[i]->function_def.arg_count == 0) {
+                    fprintf(stderr, "ERROR - NO params for %s\n", node->type_decl.methods[i]->function_def.name);
+                    exit(1);
+                }
+
                 fprintf(stderr, "%s\n", node->type_decl.name);
-                fprintf(stderr, "self param %p\n", node->type_decl.methods[i]->function_def.args_definitions[i]);
+                fprintf(stderr, "self param %p\n", node->type_decl.methods[i]->function_def.args_definitions[0]);
 
                 add_constraint(
                     cs,
-                    node->type_decl.methods[i]->function_def.args_definitions[i],
+                    node->type_decl.methods[i]->function_def.args_definitions[0],
                     lit
                 );
             }
@@ -1102,6 +1111,19 @@ void inherit(ASTNode* node, ASTNode* parent) {
             parent->type_decl.methods[i]->function_def.args,
             parent->type_decl.methods[i]->function_def.arg_count
         );
+        // typeshit
+        node->type_decl.methods[counter + node->type_decl.method_count]->type_info.kind = parent->type_decl.methods[i]->type_info.kind;
+        node->type_decl.methods[counter + node->type_decl.method_count]->type_info.name = parent->type_decl.methods[i]->type_info.name;
+        node->type_decl.methods[counter + node->type_decl.method_count]->type_info.cls = parent->type_decl.methods[i]->type_info.cls;
+
+        // propagate types
+        for (unsigned int pk = 1; pk < node->type_decl.methods[counter + node->type_decl.method_count]->function_def.arg_count; pk++) {
+            node->type_decl.methods[counter + node->type_decl.method_count]->function_def.args_definitions[pk] = parent->type_decl.methods[i]->function_def.args_definitions[pk];
+        }
+        // self
+        node->type_decl.methods[counter + node->type_decl.method_count]->function_def.args_definitions[0]->type_info.name = new_instance_type(node->type_decl.name);
+        node->type_decl.methods[counter + node->type_decl.method_count]->function_def.args_definitions[0]->type_info.cls = strdup(node->type_decl.name);
+        node->type_decl.methods[counter + node->type_decl.method_count]->function_def.args_definitions[0]->type_info.kind = (int) hash(node->type_decl.name);
         counter += 1;
     }
 
