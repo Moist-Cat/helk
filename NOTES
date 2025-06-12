@@ -17,3 +17,8 @@ a = suff (again)
 
 Efficient during codegen (it's simply a hint)
 
+
+
+Be careful about strings named as variables!
+
+let a  = Point("a") // error!
