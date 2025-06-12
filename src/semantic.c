@@ -315,16 +315,18 @@ void process_function_call(
 
 void process_method_call(
     ASTNode* call,
-    ConstraintSystem* _cs,
+    ConstraintSystem* cs,
     SymbolTable* current_scope
 ) {
     // do not modify external constraints
+    /*
     ConstraintSystem* cs = malloc(sizeof(ConstraintSystem));
     cs->count = _cs->count;
     cs->capacity = _cs->capacity;
 
     cs->constraints = malloc(_cs->capacity * sizeof(TypeConstraint));
     cs->constraints = memcpy(cs->constraints, _cs->constraints, _cs->capacity * sizeof(TypeConstraint));
+    */
 
     ASTNode* ref = call->method_call.cls;
     if (!ref || !ref->type_info.cls) {
@@ -389,14 +391,6 @@ void process_method_call(
         return;
     }
 
-    symbol_table_add(
-        func_scope,
-        "self",
-        function_def->function_def.args_definitions[0]
-    );
-
-
-    // +1 because of self again
     for(size_t i=0; i<call->method_call.arg_count; i++) {
         // Process argument expression
         fprintf(stderr, "INFO - Method of type=%d (i=%zu)\n", call->method_call.args[i]->type, i);
@@ -406,13 +400,11 @@ void process_method_call(
         // Avoid adding constraints for self
         // self is passed implicitly so we will get an
         // error otherwise
-        if (i != 0) {
-            add_constraint(
-                cs,
-                function_def->function_def.args_definitions[i],
-                &call->method_call.args[i]->type_info
-            );
-        }
+        add_constraint(
+            cs,
+            function_def->function_def.args_definitions[i],
+            &call->method_call.args[i]->type_info
+        );
 
         // Add parameter to symbol table
         fprintf(
@@ -442,7 +434,6 @@ void process_method_call(
         function_def->function_def.args_definitions[0]->type_info.kind,
         call->method_call.args[0]->type_info.kind
     );
-    //exit(1);
 }
 
 
@@ -701,7 +692,7 @@ void process_node(ASTNode* node, ConstraintSystem* cs, SymbolTable* current_scop
             if (!ref || !ref->type_info.cls) {
                 fprintf(
                     stderr,
-                    "WARNING - Could not access the class via the instance in %s.%s\n",
+                    "-------------------- WARNING - Could not access the class via the instance in %s.%s\n",
                     node->field_access.cls,
                     node->field_access.field
                 );
@@ -939,7 +930,7 @@ ASTNode* transform_ast(ASTNode* node, SymbolTable* scope) {
                 node->type_decl.fields[i] = transform_ast(node->type_decl.fields[i], scope);
             }
 
-            coerce(node);
+            //coerce(node);
 
             if (node->type_decl.base_type) {
                 fprintf(
@@ -1312,13 +1303,11 @@ bool semantic_analysis(ASTNode *node) {
             solve_constraints(&cs);
             _semantic_analysis(node, &cs, scope); // type checking (symbols)
 
-            solve_constraints(&cs);
-
-            // DEBUG to see final types clearly
             res = solve_constraints(&cs);
 
             // second round to get custom types
             node = transform_ast(node, scope); // embrace FLATness (transform the children)
+
             return res;
         }
         default: {

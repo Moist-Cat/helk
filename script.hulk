@@ -1,24 +1,8 @@
 type Point {
-    x = 0;
+    x = "0";
     y = 0;
 
-    do(x) => 17 + self.y;
-
-    constant() => 1000;
+    do(x) => self.x;
 };
-
-type Point2 inherits Point {
-    z = 0;
-
-    do(x) => self.z + x;
-};
-
-type Point3 inherits Point2 {
-};
-
-let a = new Point(0, 0);
-let b = new Point2(1, 0, 0);
-
-print(a.constant());
-print(b.constant());
-print(b.do(3));
+let b = new Point("1", 1);
+prints(b.do("3"));

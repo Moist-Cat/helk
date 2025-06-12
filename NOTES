@@ -2,13 +2,18 @@
 
 Compute closure.
 
-> base; self
+> base
 
-> a.b
 
-We already know the type. Just assign a variable during sem anal or something
+Add constraints to constructor fields.
 
-(stuff + a).b()
+> let in a = stuff
 
-__c = suff + a
-__c.b()
+a = stuff
+
+...
+
+a = suff (again)
+
+Efficient during codegen (it's simply a hint)
+

@@ -3,8 +3,6 @@ type Point {
     y = 0;
 
     do(x) => 17 + x;
-
-    constant() => 1000;
 };
 
 type Point2 inherits Point {
@@ -16,5 +14,5 @@ type Point2 inherits Point {
 let a = new Point(0, 0);
 let b = new Point2(0, 0, 0);
 
-print(a.constant());
-print(b.constant());
+print(a.do(5));
+print(b.do(5));

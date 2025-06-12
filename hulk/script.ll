@@ -6,108 +6,37 @@ declare double @print(double)
 declare double @prints(i8* nocapture) nounwind
 declare i8* @malloc(i32)
 declare void @free(i8*)
+@.str.l0 = private unnamed_addr constant [2 x i8] c"1\00", align 1
+@l0 = alias i8, getelementptr inbounds ([2 x i8], [2 x i8]* @.str.l0, i64 0, i64 0)
+@.str.l1 = private unnamed_addr constant [2 x i8] c"3\00", align 1
+@l1 = alias i8, getelementptr inbounds ([2 x i8], [2 x i8]* @.str.l1, i64 0, i64 0)
 
-%struct.Point = type { double, double }
-define %struct.Point* @Point_constructor(double %x, double %y) {
+%struct.Point = type { i8*, double }
+define %struct.Point* @Point_constructor(i8* %x, double %y) {
   %heap_ptr = call i8* @malloc(i32 16)
   %obj_ptr = bitcast i8* %heap_ptr to %struct.Point*
   %x_ptr = getelementptr %struct.Point, %struct.Point* %obj_ptr, i32 0, i32 0
-  store double %x, double* %x_ptr
+  store i8* %x, i8** %x_ptr
   %y_ptr = getelementptr %struct.Point, %struct.Point* %obj_ptr, i32 0, i32 1
   store double %y, double* %y_ptr
   ret %struct.Point* %obj_ptr
 }
 
-define double @Point_do(%struct.Point* %self, double %x) {
-l0:
-  %t0 = fadd double 0.000000e+00, 17.000000
-  %t1_ptr = getelementptr %struct.Point, %struct.Point* %self, i32 0, i32 0
-  %t1 = load double, double* %t1_ptr
-  %t2 = fadd double %t0, %t1
-  ret double %t2
-}
-
-define double @Point_constant(%struct.Point* %self) {
-l0:
-  %t0 = fadd double 0.000000e+00, 1000.000000
-  ret double %t0
-}
-%struct.Point2 = type { double, double, double }
-define %struct.Point2* @Point2_constructor(double %x, double %y, double %z) {
-  %heap_ptr = call i8* @malloc(i32 24)
-  %obj_ptr = bitcast i8* %heap_ptr to %struct.Point2*
-  %x_ptr = getelementptr %struct.Point2, %struct.Point2* %obj_ptr, i32 0, i32 0
-  store double %x, double* %x_ptr
-  %y_ptr = getelementptr %struct.Point2, %struct.Point2* %obj_ptr, i32 0, i32 1
-  store double %y, double* %y_ptr
-  %z_ptr = getelementptr %struct.Point2, %struct.Point2* %obj_ptr, i32 0, i32 2
-  store double %z, double* %z_ptr
-  ret %struct.Point2* %obj_ptr
-}
-
-define double @Point2_do(%struct.Point2* %self, double %x) {
-l0:
-  %t0_ptr = getelementptr %struct.Point2, %struct.Point2* %self, i32 0, i32 0
-  %t0 = load double, double* %t0_ptr
-  ; Load variable x
-  %t1 = fadd double %t0, %x
-  ret double %t1
-}
-
-define double @Point2_constant(%struct.Point2* %self) {
-l0:
-  %t0 = fadd double 0.000000e+00, 1000.000000
-  ret double %t0
-}
-%struct.Point3 = type { double, double, double }
-define %struct.Point3* @Point3_constructor(double %x, double %y, double %z) {
-  %heap_ptr = call i8* @malloc(i32 24)
-  %obj_ptr = bitcast i8* %heap_ptr to %struct.Point3*
-  %x_ptr = getelementptr %struct.Point3, %struct.Point3* %obj_ptr, i32 0, i32 0
-  store double %x, double* %x_ptr
-  %y_ptr = getelementptr %struct.Point3, %struct.Point3* %obj_ptr, i32 0, i32 1
-  store double %y, double* %y_ptr
-  %z_ptr = getelementptr %struct.Point3, %struct.Point3* %obj_ptr, i32 0, i32 2
-  store double %z, double* %z_ptr
-  ret %struct.Point3* %obj_ptr
-}
-
-define double @Point3_do(%struct.Point3* %self, double %x) {
-l0:
-  %t0_ptr = getelementptr %struct.Point3, %struct.Point3* %self, i32 0, i32 0
-  %t0 = load double, double* %t0_ptr
-  ; Load variable x
-  %t1 = fadd double %t0, %x
-  ret double %t1
-}
-
-define double @Point3_constant(%struct.Point3* %self) {
-l0:
-  %t0 = fadd double 0.000000e+00, 1000.000000
-  ret double %t0
+define i8* @Point_do(%struct.Point* %self, i8* %x) {
+l2:
+  %t0_ptr = getelementptr %struct.Point, %struct.Point* %self, i32 0, i32 0
+  %t0 = load i8*, i8** %t0_ptr
+  ret i8* %t0
 }
 
 define double @main() {
-l0:
-  %t1 = fadd double 0.000000e+00, 0.000000
-  %t2 = fadd double 0.000000e+00, 0.000000
-  %t0 = call %struct.Point* @Point_constructor(double %t1, double %t2)
-  ; Variable assignment: a = %t0
-  %t4 = fadd double 0.000000e+00, 1.000000
-  %t5 = fadd double 0.000000e+00, 0.000000
-  %t6 = fadd double 0.000000e+00, 0.000000
-  %t3 = call %struct.Point2* @Point2_constructor(double %t4, double %t5, double %t6)
-  ; Variable assignment: b = %t3
-  ; Load variable a
-  %t8 = call double @Point_constant(%struct.Point* %t0)
-  %t7 = call double @print(double %t8)
+l2:
+  %t1 = fadd double 0.000000e+00, 1.000000
+  %t0 = call %struct.Point* @Point_constructor(i8* @l0, double %t1)
+  ; Variable assignment: b = %t0
   ; Load variable b
-  %t10 = call double @Point2_constant(%struct.Point2* %t3)
-  %t9 = call double @print(double %t10)
-  ; Load variable b
-  %t13 = fadd double 0.000000e+00, 3.000000
-  %t12 = call double @Point2_do(%struct.Point2* %t3, double %t13)
-  %t11 = call double @print(double %t12)
-  %t14 = fadd double 0.000000e+00, 0.000000
-  ret double %t14
+  %t3 = call i8* @Point_do(%struct.Point* %t0, i8* @l1)
+  %t2 = call double @prints(i8* %t3)
+  %t4 = fadd double 0.000000e+00, 0.000000
+  ret double %t4
 }
