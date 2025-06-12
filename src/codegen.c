@@ -501,7 +501,7 @@ static char* gen_expr(CodegenContext* ctx, ASTNode* node) {
                 joink_type(node),
                 temp
             );
-            fprintf(stderr, "node_type=%d; field_type=%zu pos=%d\n", symbol->node->type_info.kind, node->type_info.kind, node->field_access.pos);
+            fprintf(stderr, "node_type=%zu; field_type=%zu pos=%d\n", symbol->node->type_info.kind, node->type_info.kind, node->field_access.pos);
             return temp;
         }
         case AST_BLOCK: {

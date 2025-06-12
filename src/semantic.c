@@ -400,11 +400,13 @@ void process_method_call(
         // Avoid adding constraints for self
         // self is passed implicitly so we will get an
         // error otherwise
+        if (!(i == 0 && (function_def->function_def.args_definitions[i]->type_info.kind != TYPE_UNKNOWN))) {
         add_constraint(
             cs,
             function_def->function_def.args_definitions[i],
             &call->method_call.args[i]->type_info
         );
+        }
 
         // Add parameter to symbol table
         fprintf(

@@ -73,6 +73,7 @@ typedef struct ASTNode {
             struct ASTNode **args_definitions;
             unsigned int arg_count;
             struct ASTNode *body;
+            unsigned int called;
         } function_def;
         struct {
             char *name;

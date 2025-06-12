@@ -233,6 +233,8 @@ ASTNode *create_ast_function_def(char *name, ASTNode *body, char **args, unsigne
         node->function_def.args_definitions[i] = create_ast_variable_def(args[i], NULL);
     }
 
+    node->function_def.called = false;
+
     node->type_info.kind = TYPE_UNKNOWN;
     node->type_info.name = NULL;
     node->type_info.cls = NULL;
