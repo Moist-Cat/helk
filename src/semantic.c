@@ -265,6 +265,9 @@ void process_function_call(
         return;
     }
 
+    // mark as called
+    function_def->function_def.called = 1;
+
     // 2. Create new scope for parameters
     fprintf(stderr, "Creating new scope for function %s\n", call->function_call.name);
     SymbolTable* func_scope = create_symbol_table(current_scope);
@@ -360,6 +363,8 @@ void process_method_call(
     );
 
     ASTNode* function_def = lookup_method(call->method_call.method, cls, current_scope);
+
+    function_def->function_def.called = 1;
 
     if(!function_def) {
         fprintf(stderr,  "ERROR - Undefined method '%s'\n", call->method_call.method);
@@ -997,6 +1002,7 @@ static ASTNode* create_main_function(ASTNode** statements, unsigned int count) {
     // explicit
     main_func->function_def.args = NULL;
     main_func->function_def.arg_count = 0;
+    main_func->function_def.called = 1;
     
     return main_func;
 }
@@ -1133,6 +1139,10 @@ void inherit(ASTNode* node, ASTNode* parent) {
             parent->type_decl.methods[i]->function_def.args,
             parent->type_decl.methods[i]->function_def.arg_count
         );
+
+        // propagate called
+        node->type_decl.methods[counter + node->type_decl.method_count]->function_def.called = parent->type_decl.methods[i]->function_def.called;
+
         // typeshit
         node->type_decl.methods[counter + node->type_decl.method_count]->type_info.kind = parent->type_decl.methods[i]->type_info.kind;
         node->type_decl.methods[counter + node->type_decl.method_count]->type_info.name = parent->type_decl.methods[i]->type_info.name;

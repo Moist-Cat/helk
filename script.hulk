@@ -1,25 +1,11 @@
-type Point {
+function useless_function(x, y, z) => 42;
+
+type A {
     x = 0;
-    y = 0;
 
-    do(x) => 17 + self.y - x;
+    useless_method(x, y) => x + y + self.x;
 
-    constant() => 1000;
+    do(x, y) => x + y + self.x;
 };
 
-type Point2 inherits Point {
-    z = "0";
-
-    do(x) => self.z;
-};
-
-type Point3 inherits Point2 {
-};
-
-let a = new Point(0, 0);
-let b = new Point2(1, 0, "99");
-
-print(a.constant());
-print(b.constant());
-print(a.do(1));
-prints(b.do(3));
+let a = new A(10) in print(a.do(5, 5));

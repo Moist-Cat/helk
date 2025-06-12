@@ -614,6 +614,10 @@ void codegen_stmt(CodegenContext* ctx, ASTNode* node) {
     /* purely functional lang */
 
     if (node->type == AST_FUNCTION_DEF) {
+        if (!node->function_def.called) {
+            fprintf(stderr, "WARNING - %s function was never called so it won't be generated\n", node->function_def.name);
+            return;
+        }
         // should ONLY contain functions after sem_anal
 
         CodegenContext* fun_ctx = clone_codegen_context(ctx);
