@@ -75,6 +75,6 @@ int main(int argc, char** argv) {
         fprintf(stderr, "FATAL - Semantic Analysis failed! Can not generate correct code\n");
     }
 
-    free_ast(ast);
+    //free_ast(ast);
     return 0;
 }
