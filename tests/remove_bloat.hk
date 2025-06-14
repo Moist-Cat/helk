@@ -1,0 +1,11 @@
+function useless_function(x, y, z) => 42;
+
+type A {
+    x = 0;
+
+    useless_method(x, y) => x + y + self.x;
+
+    do(x, y) => x + y + self.x;
+};
+
+let a = new A(10) in print(a.do(5, 5));

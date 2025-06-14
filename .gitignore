@@ -9,7 +9,9 @@
 
 # lex yacc
 src/parser.c
+src/parser.h
 src/lexer.c
+src/lexer.h
 src/parser.output
 
 #
