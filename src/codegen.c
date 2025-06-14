@@ -651,7 +651,11 @@ void codegen_stmt(CodegenContext* ctx, ASTNode* node) {
             arg_count
         );
 
-        if (arg_count > 0) {
+        // special case for fun main
+        if (strcmp(node->function_def.name, "main") == 0) {
+            emit(fun_ctx, "\ndefine i32 @main() {\n", type, node->function_def.name, def_args);
+        }
+        else if (arg_count > 0) {
             emit(fun_ctx, "\ndefine %s @%s(%s) {\n", type, node->function_def.name, def_args);
         }
         else {
@@ -661,7 +665,12 @@ void codegen_stmt(CodegenContext* ctx, ASTNode* node) {
 
         char* result = gen_expr(fun_ctx, node->function_def.body);
 
-        if (result) {
+
+        if (strcmp(node->function_def.name, "main") == 0) {
+            emit(fun_ctx, "  ret i32 0\n", type, result);
+            free(result);
+        }
+        else if (result) {
             emit(fun_ctx, "  ret %s %s\n", type, result);
             free(result);
         }

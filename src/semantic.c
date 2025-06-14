@@ -989,11 +989,9 @@ static ASTNode* create_main_function(ASTNode** statements, unsigned int count) {
     ASTNode* main_block = malloc(sizeof(ASTNode));
     main_block->type = AST_BLOCK;
 
-    statements = realloc(statements, (count + 1) * sizeof(ASTNode*));
+    statements = realloc(statements, (count) * sizeof(ASTNode*));
     main_block->block.statements = statements;
-    main_block->block.stmt_count = count + 1;
-
-    statements[count] = create_ast_number(0);
+    main_block->block.stmt_count = count;
 
     ASTNode* main_func = malloc(sizeof(ASTNode));
     main_func->type = AST_FUNCTION_DEF;

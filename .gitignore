@@ -17,6 +17,7 @@ src/parser.output
 #
 out/
 build/
+hulk/
 comp
 
 # test
