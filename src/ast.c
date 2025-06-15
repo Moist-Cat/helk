@@ -9,10 +9,34 @@ ASTNode *create_ast_block(ASTNode **block, unsigned int stmt_count) {
     node->type = AST_BLOCK;
 
     // shallow copy again again
-    node->block.statements = malloc(sizeof(ASTNode*) * stmt_count);
-    memcpy(node->block.statements, block, sizeof(ASTNode*) * stmt_count);
+    if (block != NULL) {
+        node->block.statements = malloc(sizeof(ASTNode*) * stmt_count);
+        memcpy(node->block.statements, block, sizeof(ASTNode*) * stmt_count);
+    }
+    else {
+        node->block.statements = NULL;
+    }
 
     node->block.stmt_count = stmt_count;
+
+    node->type_info.kind = TYPE_UNKNOWN;
+    node->type_info.name = NULL;
+    node->type_info.cls = NULL;
+    node->type_info.is_literal = false;
+
+    return node;
+}
+
+ASTNode *create_ast_param_list(char **params, unsigned int count) {
+    ASTNode *node = malloc(sizeof(ASTNode));
+    // not used
+    node->type = 42;
+
+    // shallow copy again again again
+    node->param_list.params = malloc(sizeof(char*) * count);
+    memcpy(node->param_list.params, params, sizeof(char*) * count);
+
+    node->param_list.count = count;
 
     node->type_info.kind = TYPE_UNKNOWN;
     node->type_info.name = NULL;

@@ -127,6 +127,11 @@ typedef struct ASTNode {
             struct ASTNode** args;
             unsigned int arg_count;
         } method_call;
+        // extra (not used after parsing)
+        struct {
+            char** params;
+            unsigned int count;
+        } param_list;
     };
 } ASTNode;
 
@@ -146,6 +151,9 @@ ASTNode* create_ast_constructor(char* cls, ASTNode** args, unsigned int arg_coun
 ASTNode* create_ast_field_def(char* name, ASTNode* default_value);
 ASTNode* create_ast_field_access(char* cls, char* field);
 ASTNode* create_ast_method_call(ASTNode* cls, char* method, ASTNode** args, unsigned int arg_count);
+
+ASTNode *create_ast_param_list(char **params, unsigned int count);
+
 void free_ast(ASTNode *node);
 void ast_print_node(const ASTNode *node, int indent);
 

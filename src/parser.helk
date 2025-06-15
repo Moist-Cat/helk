@@ -19,37 +19,118 @@
 
 @
 
-Program: Expr $
+Program: StmtBlock $
 
-    ASTNode** block = malloc(sizeof(ASTNode*)*1);
-    block[0] = _Expr;
-    node = create_ast_block(block, 1);
+    node = _StmtBlock;
+    fprintf(stderr, "INFO - Created program block\n");
 
 @
 
-Expr:
-    Term ExprTail $
+StmtBlock: Stmt SEMICOLON StmtBlockTail $
+
+    // Collect all statements into a block
+    if (_StmtBlockTail == NULL) {
+        ASTNode** block = malloc(sizeof(ASTNode*) * 1);
+        block[0] = _Stmt;
+        node = create_ast_block(block, 1);
+    } else {
+        int count = _StmtBlockTail->block.stmt_count + 1;
+        ASTNode** block = malloc(sizeof(ASTNode*) * count);
+        block[0] = _Stmt;
+        for (unsigned int i = 0; i < _StmtBlockTail->block.stmt_count; i++) {
+            block[i+1] = _StmtBlockTail->block.statements[i];
+        }
+        node = create_ast_block(block, count);
+        free(_StmtBlockTail->block.statements);
+        free(_StmtBlockTail);
+    }
+
+@
+
+StmtBlockTail: Stmt SEMICOLON StmtBlockTail $
+
+    // Build linked list of statements
+    if (_StmtBlockTail == NULL) {
+        ASTNode** block = malloc(sizeof(ASTNode*) * 1);
+        block[0] = _Stmt;
+        node = create_ast_block(block, 1);
+    } else {
+        int count = _StmtBlockTail->block.stmt_count + 1;
+        ASTNode** block = realloc(_StmtBlockTail->block.statements, sizeof(ASTNode*) * count);
+        // Shift existing elements
+        for (unsigned int i = count-1; i > 0; i--) {
+            block[i] = block[i-1];
+        }
+        block[0] = _Stmt;
+        node = create_ast_block(block, count);
+    }
+
+    | epsilon
+@
+
+Stmt: FunctionDef $
+    node = _FunctionDef;
+
+    | VariableDef $
+    node = _VariableDef;
+
+    | Expr $
+    node = _Expr;
+@
+
+FunctionDef: FUNCTION IDENTIFIER LPAREN ParamList RPAREN ARROW Expr $
+
+    node = create_ast_function_def(_IDENTIFIER.value, _Expr, _ParamList->param_list.params, _ParamList->param_list.count);
+    fprintf(stderr, "INFO - Created function: %s\n", _IDENTIFIER.value);
+
+@
+
+ParamList: epsilon $
+    node = create_ast_param_list(NULL, 0);
+
+    | IDENTIFIER ParamListTail $
+    
+    char** params = malloc(sizeof(char*) * (_ParamListTail->param_list.count + 1));
+    params[0] = _IDENTIFIER.value;
+    for (unsigned int i = 0; i < _ParamListTail->param_list.count; i++) {
+        params[i+1] = _ParamListTail->param_list.params[i];
+    }
+    node = create_ast_param_list(params, _ParamListTail->param_list.count + 1);
+@
+
+ParamListTail: COMMA IDENTIFIER ParamListTail $
+    
+    char** params = malloc(sizeof(char*) * (_ParamListTail->param_list.count + 1));
+    params[0] = _IDENTIFIER.value;
+    for (unsigned int i = 0; i < _ParamListTail->param_list.count; i++) {
+        params[i+1] = _ParamListTail->param_list.params[i];
+    }
+    node = create_ast_param_list(params, _ParamListTail->param_list.count + 1);
+
+    | epsilon $
+        node = create_ast_param_list(NULL, 0);
+@
+
+VariableDef: LET IDENTIFIER EQUALS Expr $
+    node = create_ast_variable_def(_IDENTIFIER.value, _Expr);
+    fprintf(stderr, "INFO - Defined variable: %s\n", _IDENTIFIER.value);
+@
+
+Expr: Term ExprTail $
 
     if (_ExprTail == NULL) {
-        // no tail
         node = _Term;
-    }
-    else {
-        // complete binary op
+    } else {
+        fprintf(stderr, "INFO - Completing Expr with type=%d\n", _Term->type);
         _ExprTail->binary_op.left = _Term;
         node = _ExprTail;
-        fprintf(stderr, "INFO - Completing Expr with type=%d\n", _Term->type);
     }
-    
 @
 
 ExprTail: PLUS Term ExprTail $
-
     if (_ExprTail == NULL) {
         node = create_ast_binary_op(NULL, _Term, OP_ADD);
-    }
-    else {
-        // chain operations
+    } else {
         node = create_ast_binary_op(
             NULL,
             create_ast_binary_op(_Term, _ExprTail, OP_ADD),
@@ -57,77 +138,105 @@ ExprTail: PLUS Term ExprTail $
         );
     }
 
-        | MINUS Term ExprTail $
-
+    | MINUS Term ExprTail $
     if (_ExprTail == NULL) {
         node = create_ast_binary_op(NULL, _Term, OP_SUB);
-    }
-    else {
-        // chain operations
+    } else {
         node = create_ast_binary_op(
             NULL,
             create_ast_binary_op(_Term, _ExprTail, OP_SUB),
             OP_ADD
         );
     }
-        | epsilon
+    
+    | epsilon
 @
 
-Term:
-    Factor TermTail $
-
+Term: Factor TermTail $
     if (_TermTail == NULL) {
-        // no tail
         node = _Factor;
-    }
-    else {
-        // complete binary op
+    } else {
         _TermTail->binary_op.left = _Factor;
         node = _TermTail;
-        fprintf(stderr, "INFO - Completing Term with type=%d\n", _Factor->type);
     }
 @
 
 TermTail: MULTIPLY Factor TermTail $
-
     if (_TermTail == NULL) {
         node = create_ast_binary_op(NULL, _Factor, OP_MUL);
-    }
-    else {
-        // chain operations
+    } else {
         node = create_ast_binary_op(
             NULL,
             create_ast_binary_op(_Factor, _TermTail, OP_MUL),
             OP_MUL
         );
     }
-        | DIVIDE Factor TermTail $
-
+    
+    | DIVIDE Factor TermTail $
     if (_TermTail == NULL) {
         node = create_ast_binary_op(NULL, _Factor, OP_DIV);
-    }
-    else {
-        // chain operations
+    } else {
         node = create_ast_binary_op(
             NULL,
             create_ast_binary_op(_Factor, _TermTail, OP_DIV),
             OP_DIV
         );
     }
-
-        | epsilon
+    
+    | epsilon
 @
 
 Factor: NUMBER $
-
     node = create_ast_number(atoi(_NUMBER.value));
-    fprintf(stderr, "INFO - Found terminal number=%s\n", _NUMBER.value);
 
-      | IDENTIFIER $
+    | IDENTIFIER FactorTail $
+    node = _FactorTail;
+    if (node->type == AST_FUNCTION_CALL) {
+        _FactorTail->function_call.name = _IDENTIFIER.value;
+    }
+    else {
+        _FactorTail->variable.name = _IDENTIFIER.value;  // Set identifier name
+    }
 
-    node = create_ast_variable(_IDENTIFIER.value);
-
-      | LPAREN Expr RPAREN $
-
+    | LPAREN Expr RPAREN $
     node = _Expr;
+@
+
+FactorTail: LPAREN ArgList RPAREN $
+    node = create_ast_function_call("", _ArgList->block.statements, _ArgList->block.stmt_count);
+    // Identifier will be set in parent Factor
+
+    | epsilon $
+        node = create_ast_variable("");
+@
+
+ArgList: epsilon $
+    node = create_ast_block(NULL, 0);
+
+    | Expr ArgListTail $
+    if (_ArgListTail == NULL) {
+        ASTNode** args = malloc(sizeof(ASTNode*) * (1));
+        args[0] = _Expr;
+        node = create_ast_block(args, 1);
+    }
+    else {
+        ASTNode** args = malloc(sizeof(ASTNode*) * (_ArgListTail->block.stmt_count + 1));
+        args[0] = _Expr;
+        for (unsigned int i = 0; i < _ArgListTail->block.stmt_count; i++) {
+            args[i+1] = _ArgListTail->block.statements[i];
+        }
+        node = create_ast_block(args, _ArgListTail->block.stmt_count + 1);
+    }
+@
+
+ArgListTail: COMMA Expr ArgListTail $
+    ASTNode** args = malloc(sizeof(ASTNode*) * (_ArgListTail->block.stmt_count + 1));
+    args[0] = _Expr;
+    for (unsigned int i = 0; i < _ArgListTail->block.stmt_count; i++) {
+        args[i+1] = _ArgListTail->block.statements[i];
+    }
+    node = create_ast_block(args, _ArgListTail->block.stmt_count + 1);
+
+    | epsilon $
+        node = create_ast_block(NULL, 0);
 @

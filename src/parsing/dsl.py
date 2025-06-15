@@ -52,6 +52,7 @@ class DSLProcessor:
                         alt, kode = attrib.split("$", 1)
                     else:
                         alt, kode = attrib, ""
+                    alt = alt.strip()
 
                     tokens = alt.split()
                     if alt == "ε" or alt == "epsilon":

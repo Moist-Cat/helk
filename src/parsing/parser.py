@@ -38,6 +38,8 @@ class LL1ParserGenerator:
                     all_epsilon = True
                     temp = set()
                     for symbol in prod:
+                        # the FIRST of the symbol can change (if nt)
+                        # this is the reason its a fixed point algorithm
                         s_first = first.get(symbol, set())
                         non_epsilon = s_first.difference({self.epsilon})
                         # UNION
@@ -47,6 +49,8 @@ class LL1ParserGenerator:
                             break
                     if all_epsilon:
                         temp.add(self.epsilon)
+                    # if it's a subset, it did not change
+                    # so this step is necessary
                     if not temp.issubset(first[nt]):
                         first[nt] = first[nt] | temp
                         changed = True
