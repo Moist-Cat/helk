@@ -3,14 +3,11 @@ CC=clang
 CFLAGS=-lm -g -Wall -Wextra -fsanitize=address,undefined
 CFLAGS=-lm -g -Wall -Wextra
 
-LEX_SOURCES=$(wildcard src/*.l) 
-LEX_OBJECTS=$(patsubst %.l,%.c,${LEX_SOURCES}) $(patsubst %.l,%.h,${LEX_SOURCES})
-
-YACC_SOURCES=$(wildcard src/*.y) 
-YACC_OBJECTS=$(patsubst %.y,%.c,${YACC_SOURCES}) $(patsubst %.y,%.h,${YACC_SOURCES})
+LP_SOURCES=src/lexer.helk src/lexer.helk
+LP_OBJECTS=src/lexer.h src/lexer.c src/parser.h src/parser.c src/regex_dfa.h src/regex_dfa.c
 
 SOURCES=$(wildcard src/**/*.c src/*.c)
-OBJECTS=$(patsubst %.c,%.o,${SOURCES}) $(patsubst %.l,%.o,${LEX_SOURCES}) $(patsubst %.y,%.o,${YACC_SOURCES})
+OBJECTS=$(patsubst %.c,%.o,${SOURCES}) $(patsubst %.helk,%.o,${LP_SOURCES})
 LIB_SOURCES=$(filter-out src/comp.c,${SOURCES})
 LIB_OBJECTS=$(filter-out src/comp.o,${OBJECTS})
 TEST_SOURCES=$(wildcard tests/*_tests.c)
@@ -18,9 +15,8 @@ TEST_OBJECTS=$(filter-out tests/codegen_tests,$(patsubst %.c,%,${TEST_SOURCES}))
 BUILTINS = src/builtins.c
 BUILTINS_OBJ = src/builtins.o
 
-LEX=flex
-YACC=bison
-YFLAGS?=-dv
+# :p
+LP=python src/main.py
 
 # default to build a binary
 
@@ -71,14 +67,11 @@ hulk:
 # flex & bison
 
 src/lexer.c: src/parser.c
-	${LEX} --header-file=src/lexer.h -o $@ src/lexer.l
+	${LP}
 
-src/parser.c: src/parser.y
-	mkdir -p build/bison
-	${YACC} ${YFLAGS} -o $@ $^
+src/parser.c: src/parser.helk
+	${LP}
 
-
-# llvm
 
 src/codegen.o: src/codegen.c
 	${CC} ${LLVM_CC_FLAGS} ${CFLAGS} -c -o $@ $^
@@ -87,4 +80,4 @@ src/codegen.o: src/codegen.c
 # clean
 
 clean: 
-	rm -rf ${OBJECTS} ${LEX_OBJECTS} ${YACC_OBJECTS} build/ hulk/ src/lexer.c src/parser.c
+	rm -rf ${OBJECTS} ${LP_OBJECTS} build/ hulk/ src/lexer.c src/parser.c src/regex_dfa.c

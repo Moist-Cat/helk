@@ -1,0 +1,100 @@
+#include "lexer.h"
+#include "regex_dfa.h"
+
+// ======================
+// Lexer Implementation
+// ======================
+
+void lexer_init(LexerState* state, const char* input, int length, bool skip_ws) {{
+    state->input = input;
+    state->current = input;
+    state->end = input + length;
+    state->line = 1;
+    state->column = 1;
+    state->skip_whitespace = skip_ws;
+}}
+
+Token lexer_next_token(LexerState* state) {{
+    const char* current = state->current;
+    const char* end = state->end;
+    int max_len = 0;
+    int start_line = state->line;
+    int start_col = state->column;
+    
+    // Skip whitespace if enabled
+    if (state->skip_whitespace) {{
+        while (current < end && (*current == (char) ' ' || *current == (char)
+'\t' || *current == (char) '\n' || *current == (char) '\r')) {{
+            if (*current == '\t') {{
+                state->column += 4 - (state->column % 4);
+            }}
+            else if (*current == (char) '\n'|| *current == (char) '\r') {{
+                state->line += 1;
+                state->column = 1;
+            }} else {{
+                state->column++;
+            }}
+            current++;
+        }}
+        state->current = current;
+        start_line = state->line;
+        start_col = state->column;
+    }}
+
+    // Handle EOF
+    if (current >= end) {{
+        return (Token){{TOKEN_EOF, "$", state->line, state->column}};
+    }}
+    
+    TokenType tt = TOKEN_ERROR;
+    const char* new_current = match_pattern(current, &tt);
+    
+    // Handle unrecognized tokens
+    if (tt == TOKEN_ERROR) {{
+        max_len = 1;  // Capture one character for error
+        Token token = {{
+            TOKEN_ERROR,
+            strndup(current, 1),
+            start_line,
+            start_col
+        }};
+        // Update position
+        if (*current == (char) '\n') {{
+            state->line++;
+            state->column = 1;
+        }} else {{
+            state->column++;
+        }}
+        state->current = new_current;
+        return token;
+    }}
+
+    max_len = new_current - current;
+    
+    // Create token
+    Token token = {{
+        tt,
+        strndup(current, max_len),
+        start_line,
+        start_col
+    }};
+    
+    // Update position
+    for (int i = 0; i < max_len; i++) {{
+        if (current[i] == (char) '\n') {{
+            state->line++;
+            state->column = 1;
+        }} else {{
+            state->column++;
+        }}
+    }}
+    state->current = new_current;
+    
+    return token;
+}}
+
+void lexer_free(Token* token) {{
+    if (token->value) {{
+        free(token->value);
+    }}
+}}

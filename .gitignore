@@ -7,12 +7,13 @@
 *.o
 *.d
 
-# lex yacc
-src/parser.c
-src/parser.h
-src/lexer.c
+# lexing and parsing
+src/regex_dfa.h
+src/regex_dfa.c
 src/lexer.h
-src/parser.output
+src/lexer.c
+src/parser.h
+src/parser.c
 
 #
 out/

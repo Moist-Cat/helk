@@ -1,0 +1,31 @@
+#ifndef LEXER_H
+#define LEXER_H
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <ctype.h>
+#include <stdbool.h>
+#include "regex_dfa.h"
+
+typedef struct {{
+    TokenType type;
+    char* value;
+    int line;
+    int column;
+}} Token;
+
+typedef struct {{
+    const char* input;
+    const char* current;
+    const char* end;
+    int line;
+    int column;
+    bool skip_whitespace;
+}} LexerState;
+
+void lexer_init(LexerState* state, const char* input, int length, bool skip_ws);
+Token lexer_next_token(LexerState* state);
+void lexer_free(Token* token);
+
+#endif

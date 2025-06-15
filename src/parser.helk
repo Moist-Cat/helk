@@ -1,0 +1,133 @@
+# Formal grammar declaration for the HULK programming language
+# Use "at sign" after every statement (yes, that includes comments).
+# 
+# Besides that, the syntax is like yacc's exept that we use
+# the "dollar" symbol to separate the productions and the code.
+#
+# A few pointers:
+# 
+# - The code executes after the production is completely parsed
+# - Each non-terminal returns a (ASTNode*) value called "node";
+#    it defaults to NULL and you replace it with your own nodes.
+# - There is a variable for each production
+#    (named _{Production}; for example, if you have a non-terminal called
+#    Expr, there will be a variable called _Expr in scope) already declared for you.
+#    This variable contains the node (if it's a terminal) or the Token (it is not).
+#    Use them to create complex structures
+# - Don't forget to append "dollar" to the list of productions before writing code
+# - Don't forget to write "at sign" after each statement
+
+@
+
+Program: Expr $
+
+    ASTNode** block = malloc(sizeof(ASTNode*)*1);
+    block[0] = _Expr;
+    node = create_ast_block(block, 1);
+
+@
+
+Expr:
+    Term ExprTail $
+
+    if (_ExprTail == NULL) {
+        // no tail
+        node = _Term;
+    }
+    else {
+        // complete binary op
+        _ExprTail->binary_op.left = _Term;
+        node = _ExprTail;
+        fprintf(stderr, "INFO - Completing Expr with type=%d\n", _Term->type);
+    }
+    
+@
+
+ExprTail: PLUS Term ExprTail $
+
+    if (_ExprTail == NULL) {
+        node = create_ast_binary_op(NULL, _Term, OP_ADD);
+    }
+    else {
+        // chain operations
+        node = create_ast_binary_op(
+            NULL,
+            create_ast_binary_op(_Term, _ExprTail, OP_ADD),
+            OP_ADD
+        );
+    }
+
+        | MINUS Term ExprTail $
+
+    if (_ExprTail == NULL) {
+        node = create_ast_binary_op(NULL, _Term, OP_SUB);
+    }
+    else {
+        // chain operations
+        node = create_ast_binary_op(
+            NULL,
+            create_ast_binary_op(_Term, _ExprTail, OP_SUB),
+            OP_ADD
+        );
+    }
+        | epsilon
+@
+
+Term:
+    Factor TermTail $
+
+    if (_TermTail == NULL) {
+        // no tail
+        node = _Factor;
+    }
+    else {
+        // complete binary op
+        _TermTail->binary_op.left = _Factor;
+        node = _TermTail;
+        fprintf(stderr, "INFO - Completing Term with type=%d\n", _Factor->type);
+    }
+@
+
+TermTail: MULTIPLY Factor TermTail $
+
+    if (_TermTail == NULL) {
+        node = create_ast_binary_op(NULL, _Factor, OP_MUL);
+    }
+    else {
+        // chain operations
+        node = create_ast_binary_op(
+            NULL,
+            create_ast_binary_op(_Factor, _TermTail, OP_MUL),
+            OP_MUL
+        );
+    }
+        | DIVIDE Factor TermTail $
+
+    if (_TermTail == NULL) {
+        node = create_ast_binary_op(NULL, _Factor, OP_DIV);
+    }
+    else {
+        // chain operations
+        node = create_ast_binary_op(
+            NULL,
+            create_ast_binary_op(_Factor, _TermTail, OP_DIV),
+            OP_DIV
+        );
+    }
+
+        | epsilon
+@
+
+Factor: NUMBER $
+
+    node = create_ast_number(atoi(_NUMBER.value));
+    fprintf(stderr, "INFO - Found terminal number=%s\n", _NUMBER.value);
+
+      | IDENTIFIER $
+
+    node = create_ast_variable(_IDENTIFIER.value);
+
+      | LPAREN Expr RPAREN $
+
+    node = _Expr;
+@

@@ -1,0 +1,45 @@
+#include "parser.h"
+#include <stdio.h>
+
+// Current token state
+static Token* token_stream;
+static int current_index;
+static TokenType current_tok;
+
+Token _current_token() {
+    if (current_index < 0) {
+        return (Token) {TOKEN_ERROR, "ERROR ON FIRST LOOKAHEAD", 0, 0};
+    }
+    return token_stream[current_index];
+}
+Token _next_token() {
+    if (_current_token().type != TOKEN_EOF) {
+        return token_stream[current_index + 1];
+    }
+    return _current_token();
+}
+
+TokenType current_token() {
+    return _current_token().type;
+}
+
+TokenType next_token() {
+    return _next_token().type;
+}
+
+extern void consume_token() {
+    current_index += 1;
+    current_tok = current_token();
+}
+
+void syntax_error(const char* message) {
+    Token token = _next_token();
+    fprintf(
+        stderr,
+        "SyntaxError: %s (%s) [%d, %d]\n",
+        message,
+        token.value,
+        token.line,
+        token.column
+    );
+}

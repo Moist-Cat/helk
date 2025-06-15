@@ -1,0 +1,13 @@
+// Main parsing function
+{ast_name}* parse(Token* tokens) {{
+    token_stream = tokens;
+    current_index = -1;
+    current_tok = next_token();
+    {ast_name}* root = {start_func}();
+    
+    // Check for complete parse
+    if (current_tok != TOKEN_EOF) {{
+        syntax_error("Input not fully consumed\n");
+    }}
+    return root;
+}}

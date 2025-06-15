@@ -1,0 +1,30 @@
+// Token matching helper
+Token match_token(TokenType expected) {
+    if (current_tok == expected) {
+        consume_token();
+        current_tok = next_token();
+    } else {
+        char msg[100];
+        snprintf(msg, sizeof(msg), "Expected token %d, got %d", expected, current_tok);
+        syntax_error(msg);
+    }
+    Token token = _current_token();
+    return token;
+}
+
+// Error recovery function
+static void recover_from_error(TokenType* sync_set, int set_size) {
+    // Skip tokens until synchronization point
+    int found = 0;
+    while (current_tok != TOKEN_EOF) {
+        for (int i = 0; i < set_size; i++) {
+            if (current_tok == sync_set[i]) {
+                found = 1;
+                break;
+            }
+        }
+        if (found) break;
+        consume_token();
+        current_tok = next_token();
+    }
+}

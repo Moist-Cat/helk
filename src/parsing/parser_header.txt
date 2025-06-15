@@ -1,0 +1,12 @@
+#ifndef LL1_PARSER_H
+#define LL1_PARSER_H
+#include <stdio.h>
+#include <stdlib.h>
+#include "lexer.h"
+#include "regex_dfa.h"
+#include "ast.h"
+
+// Public interface
+{ast_name}* parse();
+
+#endif // LL1_PARSER_H

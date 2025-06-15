@@ -1,13 +1,61 @@
-#include "ast.h"
-#include "parser.h"
-#include "codegen.h"
-#include "semantic.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <errno.h>
 #include <string.h>
+#include <stdbool.h>
+
+#include "lexer.h"
+#include "parser.h"
+#include "ast.h"
+#include "codegen.h"
+#include "semantic.h"
+
+Token* lexer(const char* input, int length, unsigned int* _num_tokens) {
+    LexerState* state = malloc(sizeof(LexerState));
+    Token* tokens = malloc(sizeof(Token)*0);
+    unsigned int num_tokens = 0;
+
+    lexer_init(state, input, length, true);
+
+    Token token;
+
+    while (state->current < state->end) {
+        token = lexer_next_token(state);
+        fprintf(stderr, "INFO - Ate token (%d, %s) [%d, %d] \n", token.type, token.value, token.line, token.column);
+        if (token.type == TOKEN_ERROR) {
+            fprintf(
+                stderr,
+                "ERROR - Invalid token %s (line=%d, column=%d)\n",
+                token.value,
+                token.line,
+                token.column
+            );
+            free(state);
+            free(tokens);
+            *_num_tokens = 0;
+            return NULL;
+        }
+        // modify external array
+        tokens = realloc(tokens, sizeof(Token) * (num_tokens + 1));
+        tokens[num_tokens] = token;
+        num_tokens += 1;
+
+        // after to add EOF
+        if (token.type == TOKEN_EOF) {
+            free(state);
+            *_num_tokens = num_tokens;
+            return tokens;
+        }
+    }
+    free(state);
+
+    *_num_tokens = num_tokens;
+
+    return tokens;
+
+}
 
 static char* read_file(const char* filename) {
     struct stat st;
@@ -55,15 +103,20 @@ int main(int argc, char** argv) {
         return 1;
     }
 
+
+    unsigned int num_tokens = 0;
+    Token* tokens = lexer(data, strlen(data), &num_tokens);
+
+    for (unsigned int i = 0; i < num_tokens; i++) {
+        fprintf(stderr, "%s ", tokens[i].value);
+    }
+    fprintf(stderr, "\n");
+
+    ASTNode* ast = parse(tokens);
+    ast_print_node(ast, 0);
+
     CodegenContext ctx;
     codegen_init(&ctx, stdout);
-
-    ASTNode* ast;
-    if (parse(data, &ast) != 0) {
-        free(data);
-        return 1;
-    }
-    free(data);
 
     bool res = semantic_analysis(ast);
 
@@ -75,6 +128,5 @@ int main(int argc, char** argv) {
         fprintf(stderr, "FATAL - Semantic Analysis failed! Can not generate correct code\n");
     }
 
-    //free_ast(ast);
     return 0;
 }
