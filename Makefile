@@ -6,8 +6,8 @@ CFLAGS=-lm -g -Wall -Wextra
 LP_SOURCES=src/lexer.helk src/lexer.helk
 LP_OBJECTS=src/lexer.h src/lexer.c src/parser.h src/parser.c src/regex_dfa.h src/regex_dfa.c
 
-SOURCES=$(wildcard src/**/*.c src/*.c)
-OBJECTS=$(patsubst %.c,%.o,${SOURCES}) $(patsubst %.helk,%.o,${LP_SOURCES})
+SOURCES=$(wildcard src/**/*.c src/*.c) src/lexer.c src/parser.c src/regex_dfa.c
+OBJECTS=$(patsubst %.c,%.o,${SOURCES})
 LIB_SOURCES=$(filter-out src/comp.c,${SOURCES})
 LIB_OBJECTS=$(filter-out src/comp.o,${OBJECTS})
 TEST_SOURCES=$(wildcard tests/*_tests.c)
@@ -42,12 +42,13 @@ build/libcomp.a: ${LIB_OBJECTS} build_dir
 	ar rcs $@ ${LIB_OBJECTS}
 	ranlib $@
 
-src/comp.c: ${LEX_OBJECTS}
+src/comp.c: ${LP_OBJECTS}
 
 src/comp.o: src/comp.c build/libcomp.a
 	${CC} ${CFLAGS} -c -o $@ $^
 
 build/comp: ${OBJECTS}
+	${LP}
 	${CC} ${CFLAGS} -rdynamic -Isrc -o $@ src/comp.o build/libcomp.a
 	chmod 700 $@
 
@@ -65,11 +66,12 @@ hulk:
 
 
 # flex & bison
-
-src/lexer.c: src/parser.c
+src/lexer.c: src/lexer.helk
+src/lexer.h:
 	${LP}
 
 src/parser.c: src/parser.helk
+src/parser.h:
 	${LP}
 
 
