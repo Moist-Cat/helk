@@ -285,16 +285,16 @@ static char* gen_while_loop(CodegenContext* ctx, ASTNode* node) {
     // Condition block
     char* cond_temp = gen_expr(ctx, node->while_loop.cond);
     char* end_label = new_label(ctx);
-    emit(ctx, "  %%while_cond = fcmp one double %s, 0.000000e+00\n", cond_temp);
-    emit(ctx, "  br i1 %%while_cond, label %%%s, label %%%s\n",
+    emit(ctx, "  %%while_cond%d = fcmp one double %s, 0.000000e+00\n", ctx->temp_counter, cond_temp);
+    emit(ctx, "  br i1 %%while_cond%d, label %%%s, label %%%s\n", ctx->temp_counter,
         body_label, end_label);
     //free(cond_temp);
 
     // End block
     emit(ctx, "%s:\n", end_label);
 
-    // Return dummy value (0.0)
     char* result = new_temp(ctx);
+    emit(ctx, "  ; Dummy value\n", result);
     emit(ctx, "  %s = fadd double 0.000000e+00, 0.000000e+00\n", result);
 
     // XXX verify this
@@ -613,7 +613,7 @@ void gen_redefs(CodegenContext* ctx, ASTNode* node) {
 void codegen_stmt(CodegenContext* ctx, ASTNode* node) {
     /* purely functional lang */
 
-    if (node->type == AST_FUNCTION_DEF) {
+    if ((node->type == AST_FUNCTION_DEF) || (node->type == AST_METHOD_DEF)) {
         if (!node->function_def.called) {
             fprintf(stderr, "WARNING - %s function was never called so it won't be generated\n", node->function_def.name);
             return;

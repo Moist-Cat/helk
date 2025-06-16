@@ -33,7 +33,8 @@ StmtBlock: Stmt SEMICOLON StmtBlockTail $
         ASTNode** block = malloc(sizeof(ASTNode*) * 1);
         block[0] = _Stmt;
         node = create_ast_block(block, 1);
-    } else {
+    }
+    else {
         int count = _StmtBlockTail->block.stmt_count + 1;
         ASTNode** block = malloc(sizeof(ASTNode*) * count);
         block[0] = _Stmt;
@@ -54,7 +55,8 @@ StmtBlockTail: Stmt SEMICOLON StmtBlockTail $
         ASTNode** block = malloc(sizeof(ASTNode*) * 1);
         block[0] = _Stmt;
         node = create_ast_block(block, 1);
-    } else {
+    }
+    else {
         int count = _StmtBlockTail->block.stmt_count + 1;
         ASTNode** block = realloc(_StmtBlockTail->block.statements, sizeof(ASTNode*) * count);
         // Shift existing elements
@@ -91,7 +93,8 @@ TypeDef: TYPE IDENTIFIER InheritsOpt LBRACE TypeMemberList RBRACE $
 
     if (_TypeMemberList == NULL) {
         node = create_ast_type_def(_IDENTIFIER.value, parent, NULL, 0);
-    } else {
+    }
+    else {
         node = create_ast_type_def(_IDENTIFIER.value, parent, _TypeMemberList->block.statements, _TypeMemberList->block.stmt_count);
     }
     fprintf(stderr, "INFO - Created type: %s\n", _IDENTIFIER.value);
@@ -113,6 +116,7 @@ TypeMemberList: IDENTIFIER TypeMember SEMICOLON TypeMemberListTail $
     }
     else {
         _TypeMember->function_def.name = _IDENTIFIER.value;
+        _TypeMember->type = AST_METHOD_DEF;
     }
     for (unsigned int i = 0; i < _TypeMemberListTail->block.stmt_count; i++) {
         members[i+1] = _TypeMemberListTail->block.statements[i];
@@ -129,6 +133,7 @@ TypeMemberListTail: IDENTIFIER TypeMember SEMICOLON TypeMemberListTail $
     }
     else {
         _TypeMember->function_def.name = _IDENTIFIER.value;
+        _TypeMember->type = AST_METHOD_DEF;
     }
     for (unsigned int i = 0; i < _TypeMemberListTail->block.stmt_count; i++) {
         members[i+1] = _TypeMemberListTail->block.statements[i];
@@ -195,16 +200,85 @@ ParamListTail: COMMA IDENTIFIER ParamListTail $
         node = create_ast_param_list(NULL, 0);
 @
 
-VariableDef: LET IDENTIFIER EQUALS Expr $
+VariableDef: LET VariableDefList InOpt $
+    if (_InOpt == NULL) {
+        // Multiple variable definitions without body
+        if (_VariableDefList->variable_list.count > 1) {
+            fprintf(
+                stderr,
+                "ERROR - Syntax error: defining multple variables without a body is not allowed!\n"
+            );
+            exit(1);
+        }
+        node = create_ast_variable_def(_VariableDefList->variable_list.names[0], _VariableDefList->variable_list.values[0]);
+        fprintf(stderr, "INFO - Defined %d variables\n", _VariableDefList->variable_list.count);
+    }
+    else {
+        // Let-in expression
+        node = create_ast_let_in(
+            _VariableDefList->variable_list.names,
+            _VariableDefList->variable_list.values,
+            _VariableDefList->variable_list.count,
+            _InOpt
+        );
+        fprintf(stderr, "INFO - Created let-in with %d variables\n", _VariableDefList->variable_list.count);
+    }
+@
+
+InOpt: IN Stmt $
+    node = _Stmt;
+
+    | epsilon
+@
+
+
+VariableDefList: SingleVariableDef VariableDefListTail $
+    // Build arrays for names and values
+    // check NULL
+    int count = _VariableDefListTail->variable_list.count + 1;
+    char** names = malloc(sizeof(char*) * count);
+    ASTNode** values = malloc(sizeof(ASTNode*) * count);
+    
+    names[0] = _SingleVariableDef->variable_def.name;
+    values[0] = _SingleVariableDef->variable_def.body;
+    
+    for (unsigned int i = 0; i < _VariableDefListTail->variable_list.count; i++) {
+        names[i+1] = _VariableDefListTail->variable_list.names[i];
+        values[i+1] = _VariableDefListTail->variable_list.values[i];
+    }
+    
+    node = create_ast_variable_list(names, values, count);
+@
+
+VariableDefListTail: COMMA SingleVariableDef VariableDefListTail $
+    int count = _VariableDefListTail->variable_list.count + 1;
+    char** names = malloc(sizeof(char*) * count);
+    ASTNode** values = malloc(sizeof(ASTNode*) * count);
+    
+    names[0] = _SingleVariableDef->variable_def.name;
+    values[0] = _SingleVariableDef->variable_def.body;
+    
+    for (unsigned int i = 0; i < _VariableDefListTail->variable_list.count; i++) {
+        names[i+1] = _VariableDefListTail->variable_list.names[i];
+        values[i+1] = _VariableDefListTail->variable_list.values[i];
+    }
+    
+    node = create_ast_variable_list(names, values, count);
+
+    | epsilon $
+        node = create_ast_variable_list(NULL, NULL, 0);
+@
+
+SingleVariableDef: IDENTIFIER EQUALS Expr $
     node = create_ast_variable_def(_IDENTIFIER.value, _Expr);
-    fprintf(stderr, "INFO - Defined variable: %s\n", _IDENTIFIER.value);
 @
 
 Expr: Term ExprTail $
 
     if (_ExprTail == NULL) {
         node = _Term;
-    } else {
+    }
+    else {
         fprintf(stderr, "INFO - Completing Expr with type=%d\n", _Term->type);
         _ExprTail->binary_op.left = _Term;
         node = _ExprTail;
@@ -213,11 +287,17 @@ Expr: Term ExprTail $
 
 ExprTail: PLUS Term ExprTail $
     if (_ExprTail == NULL) {
-        node = create_ast_binary_op(NULL, _Term, OP_ADD);
-    } else {
         node = create_ast_binary_op(
             NULL,
-            create_ast_binary_op(_Term, _ExprTail, OP_ADD),
+            _Term,
+            OP_ADD
+        );
+    }
+    else {
+        _ExprTail->binary_op.left = _Term;
+        node = create_ast_binary_op(
+            NULL,
+            _ExprTail,
             OP_ADD
         );
     }
@@ -225,11 +305,13 @@ ExprTail: PLUS Term ExprTail $
     | MINUS Term ExprTail $
     if (_ExprTail == NULL) {
         node = create_ast_binary_op(NULL, _Term, OP_SUB);
-    } else {
+    }
+    else {
+        _ExprTail->binary_op.left = _Term;
         node = create_ast_binary_op(
             NULL,
-            create_ast_binary_op(_Term, _ExprTail, OP_SUB),
-            OP_ADD
+            _ExprTail,
+            OP_SUB
         );
     }
     
@@ -239,7 +321,8 @@ ExprTail: PLUS Term ExprTail $
 Term: Factor TermTail $
     if (_TermTail == NULL) {
         node = _Factor;
-    } else {
+    }
+    else {
         _TermTail->binary_op.left = _Factor;
         node = _TermTail;
     }
@@ -248,10 +331,12 @@ Term: Factor TermTail $
 TermTail: MULTIPLY Factor TermTail $
     if (_TermTail == NULL) {
         node = create_ast_binary_op(NULL, _Factor, OP_MUL);
-    } else {
+    }
+    else {
+        _TermTail->binary_op.left = _Factor;
         node = create_ast_binary_op(
             NULL,
-            create_ast_binary_op(_Factor, _TermTail, OP_MUL),
+            _TermTail,
             OP_MUL
         );
     }
@@ -259,35 +344,62 @@ TermTail: MULTIPLY Factor TermTail $
     | DIVIDE Factor TermTail $
     if (_TermTail == NULL) {
         node = create_ast_binary_op(NULL, _Factor, OP_DIV);
-    } else {
+    }
+    else {
+        _TermTail->binary_op.left = _Factor;
         node = create_ast_binary_op(
             NULL,
-            create_ast_binary_op(_Factor, _TermTail, OP_DIV),
+            _TermTail,
             OP_DIV
+        );
+    }
+
+    | MOD Factor TermTail $
+    if (_TermTail == NULL) {
+        node = create_ast_binary_op(NULL, _Factor, OP_MOD);
+    }
+    else {
+        _TermTail->binary_op.left = _Factor;
+        node = create_ast_binary_op(
+            NULL,
+            _TermTail,
+            OP_MOD
         );
     }
     
     | epsilon
 @
 
-Factor: NUMBER $
-    node = create_ast_number(atoi(_NUMBER.value));
-
-    | IDENTIFIER FactorTail $
-    node = _FactorTail;
-    if (node->type == AST_FUNCTION_CALL) {
-        _FactorTail->function_call.name = _IDENTIFIER.value;
-    }
-    else if (node->type == AST_FIELD_ACCESS) {
-        _FactorTail->field_access.cls = _IDENTIFIER.value;
-        fprintf(stderr, "INFO - Accessed field: %s.%s\n", _FactorTail->field_access.cls, _FactorTail->field_access.field);
-    }
-    else if (node->type == AST_METHOD_CALL) {
-        _FactorTail->method_call.cls->variable.name = _IDENTIFIER.value;
-        fprintf(stderr, "INFO - Called method: %s.%s\n", _FactorTail->method_call.cls->variable.name, _FactorTail->method_call.method);
+Factor: NUMBER FactorTail $
+    if (_FactorTail == NULL) {
+        node = create_ast_number(atoi(_NUMBER.value));
     }
     else {
-        _FactorTail->variable.name = _IDENTIFIER.value;  // Set identifier name
+        _FactorTail->binary_op.left = create_ast_number(atoi(_NUMBER.value));
+        node = _FactorTail;
+    }
+
+    | IDENTIFIER FactorTail $
+
+    if (_FactorTail == NULL) {
+        node = create_ast_variable(_IDENTIFIER.value);
+    }
+    else {
+        node = _FactorTail;
+        if (node->type == AST_FUNCTION_CALL) {
+            _FactorTail->function_call.name = _IDENTIFIER.value;
+        }
+        else if (node->type == AST_FIELD_ACCESS) {
+            _FactorTail->field_access.cls = _IDENTIFIER.value;
+            fprintf(stderr, "INFO - Accessed field: %s.%s\n", _FactorTail->field_access.cls, _FactorTail->field_access.field);
+        }
+        else if (node->type == AST_METHOD_CALL) {
+            _FactorTail->method_call.cls->variable.name = _IDENTIFIER.value;
+            fprintf(stderr, "INFO - Called method: %s.%s\n", _FactorTail->method_call.cls->variable.name, _FactorTail->method_call.method);
+        }
+        else {
+            _FactorTail->variable.name = _IDENTIFIER.value;  // Set identifier name
+        }
     }
 
     | STRING_LITERAL $
@@ -303,6 +415,14 @@ Factor: NUMBER $
     node = create_ast_constructor(_IDENTIFIER.value, _ArgList->block.statements, _ArgList->block.stmt_count);
     fprintf(stderr, "INFO - Created instance of: %s\n", _IDENTIFIER.value);
 
+    | IF LPAREN Expr RPAREN LBRACE StmtBlock RBRACE ELSE LBRACE StmtBlock RBRACE $
+
+    node = create_ast_conditional(_Expr, _StmtBlock, __StmtBlock);
+
+    | WHILE LPAREN Expr RPAREN LBRACE StmtBlock RBRACE $
+
+    node = create_ast_while_loop(_Expr, _StmtBlock);
+
     | LPAREN Expr RPAREN $
     node = _Expr;
 @
@@ -310,6 +430,20 @@ Factor: NUMBER $
 FactorTail: LPAREN ArgList RPAREN $
     node = create_ast_function_call("", _ArgList->block.statements, _ArgList->block.stmt_count);
     // Identifier will be set in parent Factor
+
+    | EXP NUMBER FactorTail $
+
+    if (_FactorTail == NULL) {
+        node = create_ast_binary_op(NULL, create_ast_number(atoi(_NUMBER.value)), OP_EXP);
+    }
+    else {
+        _FactorTail->binary_op.left = create_ast_number(atoi(_NUMBER.value));
+        node = create_ast_binary_op(
+            NULL,
+            _FactorTail,
+            OP_EXP
+        );
+    }
 
     | DOT IDENTIFIER ClassStuff $
     node = _ClassStuff;
@@ -320,8 +454,7 @@ FactorTail: LPAREN ArgList RPAREN $
         _ClassStuff->method_call.method = _IDENTIFIER.value;
     }
 
-    | epsilon $
-        node = create_ast_variable("");
+    | epsilon
 @
 
 ClassStuff: LPAREN ArgList RPAREN $

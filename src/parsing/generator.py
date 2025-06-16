@@ -152,11 +152,14 @@ class LL1CCodeGenerator:
                 continue
 
             # Generate production actions
+            counter = Counter()
+            tail = "_"
             for symbol in production:
                 if symbol in self.terminals and symbol != self.epsilon:
-                    f.write(f"            _{symbol} = match_token(TOKEN_{symbol.upper()});\n")
+                    f.write(f"            {tail*(counter[symbol] + 1)}{symbol} = match_token(TOKEN_{symbol.upper()});\n")
                 elif symbol in self.non_terminals:
-                    f.write(f"            _{symbol} = {self.nt_to_func[symbol]}();\n")
+                    f.write(f"            {tail*(counter[symbol] + 1)}{symbol} = {self.nt_to_func[symbol]}();\n")
+                counter[symbol] += 1
             for kode in self.code.get((nt, tuple(production)), []):
                 # naively dumping unsanitized code into our parser!
                 f.write(f"            {kode}\n")

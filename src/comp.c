@@ -114,6 +114,7 @@ int main(int argc, char** argv) {
 
     ASTNode* ast = parse(tokens);
     ast_print_node(ast, 0);
+    //return 0;
 
     CodegenContext ctx;
     codegen_init(&ctx, stdout);

@@ -46,6 +46,33 @@ ASTNode *create_ast_param_list(char **params, unsigned int count) {
     return node;
 }
 
+ASTNode* create_ast_variable_list(char **names, ASTNode **values, unsigned int count) {
+    ASTNode *node = malloc(sizeof(ASTNode));
+    // not used
+    node->type = 69;
+
+    // shallow copy again again again
+    node->variable_list.names = malloc(sizeof(char*) * count);
+    memcpy(node->variable_list.names, names, sizeof(char*) * count);
+
+    if (values != NULL) {
+        node->variable_list.values = malloc(sizeof(ASTNode*) * count);
+        memcpy(node->variable_list.values, values, sizeof(ASTNode*) * count);
+    }
+    else {
+        node->variable_list.values = NULL;
+    }
+
+    node->variable_list.count = count;
+
+    node->type_info.kind = TYPE_UNKNOWN;
+    node->type_info.name = NULL;
+    node->type_info.cls = NULL;
+    node->type_info.is_literal = false;
+
+    return node;
+}
+
 ASTNode* create_ast_let_in(char **names, ASTNode **values, unsigned int count, ASTNode *body) {
     ASTNode *node = malloc(sizeof(ASTNode));
     node->type = AST_LET_IN;
@@ -127,7 +154,7 @@ ASTNode* create_ast_type_def(char* name, char* base_type,
 
     for (size_t i = 0; i < member_count; i++) {
         if (members[i]->type == AST_FIELD_DEF) field_count++;
-        else if (members[i]->type == AST_FUNCTION_DEF) method_count++;
+        else if (members[i]->type == AST_METHOD_DEF) method_count++;
     }
 
     // Allocate type definition
@@ -145,7 +172,7 @@ ASTNode* create_ast_type_def(char* name, char* base_type,
     for (size_t i = 0; i < member_count; i++) {
         if (members[i]->type == AST_FIELD_DEF) {
             node->type_decl.fields[f_idx++] = members[i];
-        } else if (members[i]->type == AST_FUNCTION_DEF) {
+        } else if (members[i]->type == AST_METHOD_DEF) {
             node->type_decl.methods[m_idx++] = members[i];
         }
     }
@@ -650,7 +677,7 @@ void ast_print_node(const ASTNode *node, int indent) {
         case AST_METHOD_CALL: {
             print_indent(indent);
             fprintf(stderr, "METHOD_CALL: %s.%s (%u args)\n",
-                    node->method_call.cls ? "?" : "?",
+                    node->method_call.cls->variable.name,
                     node->method_call.method ? node->method_call.method : "NULL",
                     node->method_call.arg_count);
             print_indent(indent);
@@ -668,7 +695,20 @@ void ast_print_node(const ASTNode *node, int indent) {
         }
         case AST_METHOD_DEF:
             print_indent(indent);
-            fprintf(stderr, "METHOD_DEF: (Handled in TYPE_DEF methods)\n");
+            fprintf(stderr, "METHOD: %s\n", node->function_def.name ? node->function_def.name : "NULL");
+            print_indent(indent);
+            fprintf(stderr, "  ARGUMENTS (%u):\n", node->function_def.arg_count);
+            for (size_t i = 0; i < node->function_def.arg_count; i++) {
+                if (node->function_def.args_definitions && node->function_def.args_definitions[i]) {
+                    ast_print_node(node->function_def.args_definitions[i], indent + 2);
+                } else {
+                    print_indent(indent + 2);
+                    fprintf(stderr, "NULL\n");
+                }
+            }
+            print_indent(indent);
+            fprintf(stderr, "  BODY:\n");
+            ast_print_node(node->function_def.body, indent + 2);
             break;
         default:
             print_indent(indent);

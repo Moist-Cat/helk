@@ -4,6 +4,10 @@ Compute closure.
 
 > base
 
+base(self) // <- we have the type inferred
+degrades the type
+that is, gets self.parent and calls the fun
+
 
 Add constraints to constructor fields.
 

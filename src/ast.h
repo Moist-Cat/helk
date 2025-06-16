@@ -134,11 +134,16 @@ typedef struct ASTNode {
             char** params;
             unsigned int count;
         } param_list;
+        struct {
+            char** names;
+            struct ASTNode** values;
+            unsigned int count;
+        } variable_list;
     };
 } ASTNode;
 
 ASTNode* create_ast_block(ASTNode **block, unsigned int stmt_count);
-ASTNode *create_ast_string(char* ptr);
+ASTNode* create_ast_string(char* ptr);
 ASTNode* create_ast_number(double value);
 ASTNode* create_ast_binary_op(ASTNode *left, ASTNode *right, ASTBinaryOp op);
 ASTNode* create_ast_function_def(char *name, ASTNode *body, char **args, unsigned int arg_count);
@@ -154,7 +159,8 @@ ASTNode* create_ast_field_def(char* name, ASTNode* default_value);
 ASTNode* create_ast_field_access(char* cls, char* field);
 ASTNode* create_ast_method_call(ASTNode* cls, char* method, ASTNode** args, unsigned int arg_count);
 
-ASTNode *create_ast_param_list(char **params, unsigned int count);
+ASTNode* create_ast_param_list(char **params, unsigned int count);
+ASTNode* create_ast_variable_list(char **names, ASTNode **values, unsigned int count);
 
 void free_ast(ASTNode *node);
 void ast_print_node(const ASTNode *node, int indent);
