@@ -1,5 +1,5 @@
 from pathlib import Path
-from collections import defaultdict
+from collections import defaultdict, Counter
 
 from parsing.parser import LL1ParserGenerator
 from parsing.dsl import DSLProcessor
@@ -104,14 +104,21 @@ class LL1CCodeGenerator:
         for (nt_key, token), production in self.table.items():
             if nt_key == nt:
                 for prod in production:
-                    if (prod == self.epsilon) or prod in defined:
+                    # not Count(prod) == 2 is a patch for
+                    # IDENTIFIER DOT IDENTIFIER
+                    if (prod == self.epsilon) or (prod in defined):
                         continue
                     cls = ""
                     if prod not in self.non_terminals:
                         cls = "Token"
                     else:
                         cls = "ASTNode*"
-                    f.write(f"    {cls} _{prod};\n")
+                    tail = "_"
+                    # patch for
+                    # IDENTIFIER DOT IDENTIFIER
+                    for _ in range(Counter(production).get(prod)):
+                        f.write(f"    {cls} {tail}{prod};\n")
+                        tail += "_"
                     defined.add(prod)
 
         f.write("\n")

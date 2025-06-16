@@ -103,21 +103,33 @@ InheritsOpt: INHERITS IDENTIFIER $
     | epsilon
 @
 
-TypeMemberList: TypeMember SEMICOLON TypeMemberListTail $
+TypeMemberList: IDENTIFIER TypeMember SEMICOLON TypeMemberListTail $
     // Build member list in order
     int count = _TypeMemberListTail->block.stmt_count + 1;
     ASTNode** members = malloc(sizeof(ASTNode*) * count);
     members[0] = _TypeMember;
+    if (_TypeMember->type == AST_FIELD_DEF) {
+        _TypeMember->field_def.name = _IDENTIFIER.value;
+    }
+    else {
+        _TypeMember->function_def.name = _IDENTIFIER.value;
+    }
     for (unsigned int i = 0; i < _TypeMemberListTail->block.stmt_count; i++) {
         members[i+1] = _TypeMemberListTail->block.statements[i];
     }
     node = create_ast_block(members, count);
 @
 
-TypeMemberListTail: TypeMember SEMICOLON TypeMemberListTail $
+TypeMemberListTail: IDENTIFIER TypeMember SEMICOLON TypeMemberListTail $
     int count = _TypeMemberListTail->block.stmt_count + 1;
     ASTNode** members = malloc(sizeof(ASTNode*) * count);
     members[0] = _TypeMember;
+    if (_TypeMember->type == AST_FIELD_DEF) {
+        _TypeMember->field_def.name = _IDENTIFIER.value;
+    }
+    else {
+        _TypeMember->function_def.name = _IDENTIFIER.value;
+    }
     for (unsigned int i = 0; i < _TypeMemberListTail->block.stmt_count; i++) {
         members[i+1] = _TypeMemberListTail->block.statements[i];
     }
@@ -134,20 +146,18 @@ TypeMember: FieldDef $
     node = _MethodDef;
 @
 
-FieldDef: IDENTIFIER EQUALS Expr $
-    node = create_ast_field_def(_IDENTIFIER.value, _Expr);
-    fprintf(stderr, "INFO - Created field: %s\n", _IDENTIFIER.value);
+FieldDef: EQUALS Expr $
+    node = create_ast_field_def("", _Expr);
 @
 
-MethodDef: MEMBER IDENTIFIER LPAREN ParamList RPAREN ARROW Expr $
+MethodDef: LPAREN ParamList RPAREN ARROW Expr $
     // Prepend "self" to parameter list
     char** params = malloc(sizeof(char*) * (_ParamList->param_list.count + 1));
     params[0] = strdup("self");
     for (unsigned int i = 0; i < _ParamList->param_list.count; i++) {
         params[i+1] = _ParamList->param_list.params[i];
     }
-    node = create_ast_function_def(_IDENTIFIER.value, _Expr, params, _ParamList->param_list.count + 1);
-    fprintf(stderr, "INFO - Created method: %s\n", _IDENTIFIER.value);
+    node = create_ast_function_def("", _Expr, params, _ParamList->param_list.count + 1);
 @
 
 FunctionDef: FUNCTION IDENTIFIER LPAREN ParamList RPAREN ARROW Expr $
@@ -268,6 +278,14 @@ Factor: NUMBER $
     if (node->type == AST_FUNCTION_CALL) {
         _FactorTail->function_call.name = _IDENTIFIER.value;
     }
+    else if (node->type == AST_FIELD_ACCESS) {
+        _FactorTail->field_access.cls = _IDENTIFIER.value;
+        fprintf(stderr, "INFO - Accessed field: %s.%s\n", _FactorTail->field_access.cls, _FactorTail->field_access.field);
+    }
+    else if (node->type == AST_METHOD_CALL) {
+        _FactorTail->method_call.cls->variable.name = _IDENTIFIER.value;
+        fprintf(stderr, "INFO - Called method: %s.%s\n", _FactorTail->method_call.cls->variable.name, _FactorTail->method_call.method);
+    }
     else {
         _FactorTail->variable.name = _IDENTIFIER.value;  // Set identifier name
     }
@@ -281,6 +299,10 @@ Factor: NUMBER $
 
     node = create_ast_string(result);
 
+    | NEW IDENTIFIER LPAREN ArgList RPAREN $
+    node = create_ast_constructor(_IDENTIFIER.value, _ArgList->block.statements, _ArgList->block.stmt_count);
+    fprintf(stderr, "INFO - Created instance of: %s\n", _IDENTIFIER.value);
+
     | LPAREN Expr RPAREN $
     node = _Expr;
 @
@@ -289,8 +311,36 @@ FactorTail: LPAREN ArgList RPAREN $
     node = create_ast_function_call("", _ArgList->block.statements, _ArgList->block.stmt_count);
     // Identifier will be set in parent Factor
 
+    | DOT IDENTIFIER ClassStuff $
+    node = _ClassStuff;
+    if (node->type == AST_FIELD_ACCESS) {
+        _ClassStuff->field_access.field = _IDENTIFIER.value;
+    }
+    else if (node->type == AST_METHOD_CALL) {
+        _ClassStuff->method_call.method = _IDENTIFIER.value;
+    }
+
     | epsilon $
         node = create_ast_variable("");
+@
+
+ClassStuff: LPAREN ArgList RPAREN $
+    // Method call with implicit self
+    size_t new_count = _ArgList->block.stmt_count + 1;
+    ASTNode** new_args = malloc(new_count * sizeof(ASTNode*));
+    new_args[0] = create_ast_variable("");  // Add self as first arg
+    for (size_t i = 0; i < _ArgList->block.stmt_count; i++) {
+        new_args[i+1] = _ArgList->block.statements[i];
+    }
+    node = create_ast_method_call(
+        new_args[0],
+        "",
+        new_args,
+        new_count
+    );
+    |  epsilon $
+    // Field access
+    node = create_ast_field_access("", "");
 @
 
 ArgList: epsilon $

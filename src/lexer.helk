@@ -15,7 +15,6 @@
     ("LET", r"let"),
     ("WHILE", r"while"),
     ("FUNCTION", r"function"),
-    ("MEMBER", f"member"),
 
     # Multi-character operators
     ("ARROW", r"=>"),
