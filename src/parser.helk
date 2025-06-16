@@ -74,8 +74,80 @@ Stmt: FunctionDef $
     | VariableDef $
     node = _VariableDef;
 
+    | TypeDef $
+    node = _TypeDef;
+
     | Expr $
     node = _Expr;
+@
+
+TypeDef: TYPE IDENTIFIER InheritsOpt LBRACE TypeMemberList RBRACE $
+
+    char* parent = NULL;
+
+    if (_InheritsOpt != NULL) {
+        parent = _InheritsOpt->variable.name;
+    }
+
+    if (_TypeMemberList == NULL) {
+        node = create_ast_type_def(_IDENTIFIER.value, parent, NULL, 0);
+    } else {
+        node = create_ast_type_def(_IDENTIFIER.value, parent, _TypeMemberList->block.statements, _TypeMemberList->block.stmt_count);
+    }
+    fprintf(stderr, "INFO - Created type: %s\n", _IDENTIFIER.value);
+@
+
+InheritsOpt: INHERITS IDENTIFIER $
+    node = create_ast_variable(_IDENTIFIER.value);
+
+    | epsilon
+@
+
+TypeMemberList: TypeMember SEMICOLON TypeMemberListTail $
+    // Build member list in order
+    int count = _TypeMemberListTail->block.stmt_count + 1;
+    ASTNode** members = malloc(sizeof(ASTNode*) * count);
+    members[0] = _TypeMember;
+    for (unsigned int i = 0; i < _TypeMemberListTail->block.stmt_count; i++) {
+        members[i+1] = _TypeMemberListTail->block.statements[i];
+    }
+    node = create_ast_block(members, count);
+@
+
+TypeMemberListTail: TypeMember SEMICOLON TypeMemberListTail $
+    int count = _TypeMemberListTail->block.stmt_count + 1;
+    ASTNode** members = malloc(sizeof(ASTNode*) * count);
+    members[0] = _TypeMember;
+    for (unsigned int i = 0; i < _TypeMemberListTail->block.stmt_count; i++) {
+        members[i+1] = _TypeMemberListTail->block.statements[i];
+    }
+    node = create_ast_block(members, count);
+
+    | epsilon $
+        node = create_ast_block(NULL, 0);
+@
+
+TypeMember: FieldDef $
+    node = _FieldDef;
+
+    | MethodDef $
+    node = _MethodDef;
+@
+
+FieldDef: IDENTIFIER EQUALS Expr $
+    node = create_ast_field_def(_IDENTIFIER.value, _Expr);
+    fprintf(stderr, "INFO - Created field: %s\n", _IDENTIFIER.value);
+@
+
+MethodDef: MEMBER IDENTIFIER LPAREN ParamList RPAREN ARROW Expr $
+    // Prepend "self" to parameter list
+    char** params = malloc(sizeof(char*) * (_ParamList->param_list.count + 1));
+    params[0] = strdup("self");
+    for (unsigned int i = 0; i < _ParamList->param_list.count; i++) {
+        params[i+1] = _ParamList->param_list.params[i];
+    }
+    node = create_ast_function_def(_IDENTIFIER.value, _Expr, params, _ParamList->param_list.count + 1);
+    fprintf(stderr, "INFO - Created method: %s\n", _IDENTIFIER.value);
 @
 
 FunctionDef: FUNCTION IDENTIFIER LPAREN ParamList RPAREN ARROW Expr $
@@ -89,7 +161,8 @@ ParamList: epsilon $
     node = create_ast_param_list(NULL, 0);
 
     | IDENTIFIER ParamListTail $
-    
+
+    fprintf(stderr, "%p\n", _ParamListTail);
     char** params = malloc(sizeof(char*) * (_ParamListTail->param_list.count + 1));
     params[0] = _IDENTIFIER.value;
     for (unsigned int i = 0; i < _ParamListTail->param_list.count; i++) {
@@ -108,6 +181,7 @@ ParamListTail: COMMA IDENTIFIER ParamListTail $
     node = create_ast_param_list(params, _ParamListTail->param_list.count + 1);
 
     | epsilon $
+        // this kode doesn't appear
         node = create_ast_param_list(NULL, 0);
 @
 
@@ -197,6 +271,15 @@ Factor: NUMBER $
     else {
         _FactorTail->variable.name = _IDENTIFIER.value;  // Set identifier name
     }
+
+    | STRING_LITERAL $
+    char* str = _STRING_LITERAL.value;
+    size_t len = strlen(str);
+    char* result = (char*) malloc(len - 1); // Total bytes: (len - 2) + 1
+    memcpy(result, str + 1, len - 2); // Copy from index 1 to len-2
+    result[len - 2] = '\0';
+
+    node = create_ast_string(result);
 
     | LPAREN Expr RPAREN $
     node = _Expr;

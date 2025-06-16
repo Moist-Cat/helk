@@ -50,6 +50,8 @@ typedef enum {
 typedef struct ASTNode {
     ASTNodeType type;
     TypeInfo type_info;
+    unsigned int line;
+    unsigned int column;
     unsigned int type_var_id;  // Index in constraint system
     union {
         double number;

@@ -84,7 +84,7 @@ bool solve_constraints(ConstraintSystem* cs) {
                actual != TYPE_UNKNOWN &&
                expected != actual) {
                // XXX
-               fprintf(stderr, "ERROR - Literal type mismatch %d\n", c->node->type);
+               fprintf(stderr, "ERROR - Literal type mismatch %d; [%d, %d]\n", c->node->type, c->node->line, c->node->column);
                exit(1);
                return false;
             }

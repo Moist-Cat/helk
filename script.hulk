@@ -1,1 +1,7 @@
+type A {
+    x = 5;
+    member a(x) => 5;
+};
+
 print((1 + 1 * 3) / 2);
+prints("a" + 1);

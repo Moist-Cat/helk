@@ -50,11 +50,11 @@ class Lexer:
         for idx, (token_type, pattern) in enumerate(self.rules):
             pattern_nfa = self.engine.compile(pattern)
             pattern_nfa.end.is_accepting = True
-            #pattern_nfa.end.token_type = token_type
-            #pattern_nfa.end.pattern_index = idx
-            for state in pattern_nfa.states:
-                state.token_type = token_type
-                state.pattern_index = idx
+            pattern_nfa.end.token_type = token_type
+            pattern_nfa.end.pattern_index = idx
+            #for state in pattern_nfa.states:
+            #    state.token_type = token_type
+            #    state.pattern_index = idx
             start.epsilon_transitions.add(pattern_nfa.start)
             nfa.states |= pattern_nfa.states
 

@@ -138,6 +138,9 @@ class LL1CCodeGenerator:
             # Handle epsilon production
             if production == (self.epsilon,):
                 f.write("            /* epsilon */\n")
+                # epsilon might have kode
+                for kode in self.code.get((nt, (self.epsilon,)), []):
+                    f.write(f"            {kode}\n")
                 f.write("            break;\n\n")
                 continue
 
@@ -157,6 +160,11 @@ class LL1CCodeGenerator:
         f.write('            syntax_error("Unexpected token");\n')
         f.write("            recover_from_error(sync_set, sync_size);\n")
         f.write("            break;\n")
+        f.write("    }\n")
+        f.write("    if ((node != NULL) && (current_index > 0) && (current_tok != TOKEN_EOF)) {\n")
+        f.write("        Token token = _current_token();\n")
+        f.write("        node->line = token.line;\n")
+        f.write("        node->column = token.column;\n")
         f.write("    }\n")
         f.write("    return node;\n")
         f.write("}\n\n")

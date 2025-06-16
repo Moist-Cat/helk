@@ -57,6 +57,7 @@ class DSLProcessor:
                     tokens = alt.split()
                     if alt == "ε" or alt == "epsilon":
                         self.grammar[lhs].append([self.epsilon])
+                        tokens = (self.epsilon,)
                     else:
                         self.grammar[lhs].append(tokens)
                     # strip everyone and delet whites
