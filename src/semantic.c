@@ -56,7 +56,7 @@ bool solve_constraints(ConstraintSystem* cs) {
             size_t expected = t->kind;
             size_t actual = c->node->type_info.kind;
 
-            fprintf(stderr, "INFO - Expected: %zu ; Actual: %zu ; Node: %d\n\n", expected, actual, c->node->type);
+            //fprintf(stderr, "INFO - Expected: %zu ; Actual: %zu ; Node: %d\n\n", expected, actual, c->node->type);
 
             if (c->node->type == AST_FUNCTION_CALL) {
                 fprintf(stderr, "For function %s\n", c->node->function_call.name);

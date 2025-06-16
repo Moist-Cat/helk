@@ -165,11 +165,22 @@ MethodDef: LPAREN ParamList RPAREN ARROW Expr $
     node = create_ast_function_def("", _Expr, params, _ParamList->param_list.count + 1);
 @
 
-FunctionDef: FUNCTION IDENTIFIER LPAREN ParamList RPAREN ARROW Expr $
+FunctionDef: FUNCTION IDENTIFIER LPAREN ParamList RPAREN FunctionBody $
 
-    node = create_ast_function_def(_IDENTIFIER.value, _Expr, _ParamList->param_list.params, _ParamList->param_list.count);
+    node = create_ast_function_def(
+        _IDENTIFIER.value,
+        _FunctionBody,
+        _ParamList->param_list.params,
+        _ParamList->param_list.count
+    );
     fprintf(stderr, "INFO - Created function: %s\n", _IDENTIFIER.value);
 
+@
+
+FunctionBody: ARROW Expr $
+        node = _Expr;
+    | LBRACE StmtBlock RBRACE $
+        node = _StmtBlock;
 @
 
 ParamList: epsilon $
@@ -366,6 +377,24 @@ TermTail: MULTIPLY Factor TermTail $
             OP_MOD
         );
     }
+
+    | EXP Factor TermTail $
+
+    if (_TermTail == NULL) {
+        node = create_ast_binary_op(
+            NULL,
+            _Factor,
+            OP_EXP
+        );
+    }
+    else {
+        _TermTail->binary_op.left = _Factor;
+        node = create_ast_binary_op(
+            NULL,
+            _TermTail,
+            OP_EXP
+        );
+    }
     
     | epsilon
 @
@@ -430,20 +459,6 @@ Factor: NUMBER FactorTail $
 FactorTail: LPAREN ArgList RPAREN $
     node = create_ast_function_call("", _ArgList->block.statements, _ArgList->block.stmt_count);
     // Identifier will be set in parent Factor
-
-    | EXP NUMBER FactorTail $
-
-    if (_FactorTail == NULL) {
-        node = create_ast_binary_op(NULL, create_ast_number(atoi(_NUMBER.value)), OP_EXP);
-    }
-    else {
-        _FactorTail->binary_op.left = create_ast_number(atoi(_NUMBER.value));
-        node = create_ast_binary_op(
-            NULL,
-            _FactorTail,
-            OP_EXP
-        );
-    }
 
     | DOT IDENTIFIER ClassStuff $
     node = _ClassStuff;
