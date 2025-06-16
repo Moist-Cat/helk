@@ -3,11 +3,19 @@ from collections import deque, defaultdict
 from dataclasses import dataclass, field
 from typing import Dict, Set, FrozenSet, List, Tuple, Optional
 
-from lexing.condition import Condition, SingleCharCondition, CharSetCondition, WildcardCondition, MetaCharCondition
+from lexing.condition import (
+    Condition,
+    SingleCharCondition,
+    CharSetCondition,
+    WildcardCondition,
+    MetaCharCondition,
+)
+
 
 @dataclass
 class NFAState:
     """Represents a state in the NFA."""
+
     # 0 = start; 1 = end;
     # end => accepting is not always True
     id: int
@@ -15,8 +23,8 @@ class NFAState:
     token_type: Optional[str] = None
     # traks the priority of the pattern; not used but it's okay to keep it around
     pattern_index: Optional[int] = None
-    char_transitions: Dict[Condition, Set['NFAState']] = field(default_factory=dict)
-    epsilon_transitions: Set['NFAState'] = field(default_factory=set)
+    char_transitions: Dict[Condition, Set["NFAState"]] = field(default_factory=dict)
+    epsilon_transitions: Set["NFAState"] = field(default_factory=set)
 
     # notice we can not compare states directly
     def __hash__(self):
@@ -25,8 +33,10 @@ class NFAState:
     def __eq__(self, other):
         return id(self.id) == id(other.id)
 
+
 class NFA:
     """Non-deterministic Finite Automaton representation."""
+
     def __init__(self, start: NFAState, end: NFAState):
         self.start = start
         self.end = end
@@ -36,7 +46,7 @@ class NFA:
         self.states.add(state)
 
     @staticmethod
-    def from_char(condition: Condition) -> 'NFA':
+    def from_char(condition: Condition) -> "NFA":
         """Create NFA for a single character condition."""
         start = NFAState(0)
         end = NFAState(1, is_accepting=True)
@@ -51,7 +61,7 @@ class NFA:
         return nfa
 
     @staticmethod
-    def concatenate(nfa1: 'NFA', nfa2: 'NFA') -> 'NFA':
+    def concatenate(nfa1: "NFA", nfa2: "NFA") -> "NFA":
         """Concatenate two NFAs: nfa1 then nfa2."""
         # The famous "pegar dos automatas con 'teipe'" algorithm
         nfa1.end.epsilon_transitions.add(nfa2.start)
@@ -63,7 +73,7 @@ class NFA:
         return nfa
 
     @staticmethod
-    def union(nfas: List['NFA']) -> 'NFA':
+    def union(nfas: List["NFA"]) -> "NFA":
         """Create union of multiple NFAs (alternatives)."""
         start = NFAState(0)
         end = NFAState(1, is_accepting=True)
@@ -72,7 +82,7 @@ class NFA:
         nfa.add_state(end)
 
         # Basically, we simply add transitions
-        # to 
+        # to
         for sub_nfa in nfas:
             start.epsilon_transitions.add(sub_nfa.start)
             sub_nfa.end.epsilon_transitions.add(end)
@@ -81,14 +91,14 @@ class NFA:
         return nfa
 
     @staticmethod
-    def star(nfa_in: 'NFA') -> 'NFA':
+    def star(nfa_in: "NFA") -> "NFA":
         """Apply Kleene star (0 or more repetitions)."""
         end = NFAState(1, is_accepting=True)
         nfa_in.end.is_accepting = False
-        
+
         end.epsilon_transitions.add(nfa_in.start)
         nfa_in.end.epsilon_transitions.add(end)
-        
+
         # End and start are the one and the same
         # Hopefully this doesn't break anything
         nfa = NFA(end, end)
@@ -96,21 +106,21 @@ class NFA:
         return nfa
 
     @staticmethod
-    def plus(nfa_in: 'NFA') -> 'NFA':
+    def plus(nfa_in: "NFA") -> "NFA":
         """Apply plus (1 or more repetitions)."""
         return NFA.concatenate(nfa_in, NFA.star(nfa_in))
 
     @staticmethod
-    def optional(nfa_in: 'NFA') -> 'NFA':
+    def optional(nfa_in: "NFA") -> "NFA":
         """Apply optional operator (0 or 1 repetitions)."""
         start = NFAState(0)
         end = NFAState(1, is_accepting=True)
         nfa_in.end.is_accepting = False
-        
+
         start.epsilon_transitions.add(nfa_in.start)
         start.epsilon_transitions.add(end)
         nfa_in.end.epsilon_transitions.add(end)
-        
+
         nfa = NFA(start, end)
         nfa.states = {start, end} | nfa_in.states
         return nfa
@@ -142,7 +152,9 @@ class DFAConverter:
         # since we mashed together a bunch of (NF) automata, we need another
         # table to keep track of the transitions
         # using NFA.char_transitions adds ambiguity
-        self.transitions: Dict[Tuple[FrozenSet[NFAState], str], FrozenSet[NFAState]] = {}
+        self.transitions: Dict[
+            Tuple[FrozenSet[NFAState], str], FrozenSet[NFAState]
+        ] = {}
 
         # Track token types for states with multiple accept states
         self.token_types: Dict[FrozenSet[NFAState], str] = {}
@@ -194,7 +206,11 @@ class DFAConverter:
                 # If it wasn't the case, we will have an index (pattern_index)
                 # to sort the array
                 if current_dfa_state not in self.token_types:
-                    self.token_types[current_dfa_state] = accept_states[0].token_type
+                    accept_sorted = sorted(
+                        accept_states,
+                        key=lambda s: s.pattern_index,
+                    )
+                    self.token_types[current_dfa_state] = accept_sorted[0].token_type
 
             # Process each symbol in alphabet
             for symbol in self.alphabet:
@@ -236,24 +252,22 @@ class DFAConverter:
         self.dfa_states = reachable
         self.dfa_accept = {s for s in self.dfa_accept if s in reachable}
         self.transitions = {
-            k: v for k, v in self.transitions.items()
+            k: v
+            for k, v in self.transitions.items()
             if k[0] in reachable and v in reachable
         }
 
-    def get_dfa_components(self) -> Tuple[
+    def get_dfa_components(
+        self,
+    ) -> Tuple[
         Set[FrozenSet[NFAState]],
         FrozenSet[NFAState],
         Set[FrozenSet[NFAState]],
-        Dict[Tuple[FrozenSet[NFAState], Condition], FrozenSet[NFAState]]
+        Dict[Tuple[FrozenSet[NFAState], Condition], FrozenSet[NFAState]],
     ]:
         """Return DFA components: states, start, accept, transitions."""
         # quite useless except for printing the table
-        return (
-            self.dfa_states,
-            self.dfa_start,
-            self.dfa_accept,
-            self.transitions
-        )
+        return (self.dfa_states, self.dfa_start, self.dfa_accept, self.transitions)
 
     def display_transition_table(self) -> None:
         """Print readable DFA transition table."""
@@ -263,7 +277,9 @@ class DFAConverter:
         print("-" * 60)
 
         # Sort states for consistent display
-        sorted_states = sorted(self.dfa_states, key=lambda s: min(state.id for state in s))
+        sorted_states = sorted(
+            self.dfa_states, key=lambda s: min(state.id for state in s)
+        )
 
         for state in sorted_states:
             state_label = "{" + ",".join(str(s.id) for s in state) + "}"
@@ -277,13 +293,15 @@ class DFAConverter:
                     target_label = "{" + ",".join(str(s.id) for s in target) + "}"
                     trans.append(f"{symbol}→{target_label}")
 
-            print(f"{state_label:<15} | {token_type:<6} | {is_accept:<6} | {', '.join(trans)}")
+            print(
+                f"{state_label:<15} | {token_type:<6} | {is_accept:<6} | {', '.join(trans)}"
+            )
 
 
 # the amalgamation of all (lexical) things
 class DFACCodeGenerator:
     """Generates optimized C code to simulate DFA behavior with token return."""
-    
+
     def __init__(self, converter, token_types: List[str]):
         """
         Args:
@@ -295,15 +313,23 @@ class DFACCodeGenerator:
         self.dfa_start = converter.dfa_start
         self.transitions = converter.transitions
         self.token_types = token_types
-        
+
         # Map state sets to integer IDs
         self.state_to_id = {}
         # no need to sort again
+        # self.states_sorted = self.dfa_states
         self.states_sorted = self.dfa_states
+        #self.states_sorted = sorted(
+        #    self.dfa_states,
+        #    key=lambda s: min(
+        #        state.pattern_index if state.pattern_index is not None else float("inf")
+        #        for state in s
+        #    ),
+        #)
 
         for i, state_set in enumerate(self.states_sorted):
             self.state_to_id[state_set] = i
-            
+
         # Precompute accepting states and token IDs
         self.accepting = []
         self.token_ids = []
@@ -318,24 +344,32 @@ class DFACCodeGenerator:
 
     def _c_escape_char(self, c: int) -> str:
         """Convert char code to escaped C character literal."""
-        if c == ord('\\'): return r"'\\'"
-        if c == ord('\''): return r"'\''"
-        if c == ord('\"'): return r"'\"'"  # Safe in single quotes
-        if c == ord('\0'): return r"'\0'"
-        if c == ord('\n'): return r"'\n'"
-        if c == ord('\t'): return r"'\t'"
-        if c == ord('\r'): return r"'\r'"
+        if c == ord("\\"):
+            return r"'\\'"
+        if c == ord("'"):
+            return r"'\''"
+        if c == ord('"'):
+            return r"'\"'"  # Safe in single quotes
+        if c == ord("\0"):
+            return r"'\0'"
+        if c == ord("\n"):
+            return r"'\n'"
+        if c == ord("\t"):
+            return r"'\t'"
+        if c == ord("\r"):
+            return r"'\r'"
         if 32 <= c <= 126:  # Printable ASCII
             return f"'{chr(c)}'"
         return f"'\\x{c:02x}'"  # Hex escape for non-printables
 
     def _get_ranges(self, chars: List[int]) -> List[Tuple[int, int]]:
         """Convert sorted char codes to inclusive ranges."""
-        if not chars: return []
+        if not chars:
+            return []
         sorted_chars = sorted(chars)
         ranges = []
         start = end = sorted_chars[0]
-        
+
         for c in sorted_chars[1:]:
             if c == end + 1:
                 end = c
@@ -347,10 +381,10 @@ class DFACCodeGenerator:
 
     def generate_header(self, h_file: Path) -> None:
         """Generate .h file with function declarations and token types."""
-        with open(h_file / "regex_dfa.h", 'w') as f:
+        with open(h_file / "regex_dfa.h", "w") as f:
             f.write("#ifndef REGEX_DFA_H\n")
             f.write("#define REGEX_DFA_H\n\n")
-            
+
             # Token type definitions
             f.write("// Token type definitions\n")
             f.write("typedef enum {\n")
@@ -359,37 +393,48 @@ class DFACCodeGenerator:
             f.write("    TOKEN_EOF,\n")
             f.write("    TOKEN_ERROR,\n")
             f.write("} TokenType;\n\n")
-            
+
             # Function declaration
             f.write("// DFA matching function\n")
-            f.write("const char* match_pattern(const char* input, TokenType* token_type);\n\n")
+            f.write(
+                "const char* match_pattern(const char* input, TokenType* token_type);\n\n"
+            )
             f.write("#endif // REGEX_DFA_H\n")
 
     def generate_source(self, c_file: Path) -> None:
         """Generate .c file with DFA simulation implementation."""
-        with open(c_file / "regex_dfa.c", 'w') as f:
+        with open(c_file / "regex_dfa.c", "w") as f:
             # Include header and start function
             f.write(f'#include "regex_dfa.h"\n')
-            f.write(f'#include <stdio.h>\n\n')
-            f.write("const char* match_pattern(const char* input, TokenType* token_type) {\n")
+            f.write(f"#include <stdio.h>\n\n")
+            f.write(
+                "const char* match_pattern(const char* input, TokenType* token_type) {\n"
+            )
             f.write("    const char* current = input;\n")
             f.write("    const char* last_accept = NULL;\n")
             f.write("    TokenType last_token = TOKEN_ERROR;\n")
             f.write("    char c;\n\n")
-            
+
             # Start at initial state
             start_id = self.state_to_id[self.dfa_start]
             f.write(f"    goto STATE_{start_id};\n\n")
-            
+
             # Generate state handlers
             for i, state_set in enumerate(self.states_sorted):
                 f.write(f"STATE_{i}:\n")
-                
+
                 # Update last accept position
                 if self.accepting[i]:
+                    nam = self.token_types[self.token_ids[i]].upper()
+                    #for state in state_set:
+                    #    if state.is_accepting and (state.token_type != (self.token_types[self.token_ids[i]].upper())):
+                    #        nam = state.token_type
                     f.write(f"    last_accept = current;\n")
-                    f.write(f"    last_token = TOKEN_{self.token_types[self.token_ids[i]].upper()};\n")
-                
+                    f.write(
+                        f"    last_token = TOKEN_{self.token_types[self.token_ids[i]].upper()};\n"
+                        #f"    last_token = TOKEN_{nam};\n"
+                    )
+
                 # we could add another state for this
                 # but it would prefer not to add more jumps
                 # End of string handling
@@ -401,25 +446,25 @@ class DFACCodeGenerator:
                 f.write("        *token_type = TOKEN_ERROR;\n")
                 f.write("        return current;\n")
                 f.write("    }\n")
-                
+
                 f.write("    c = *current++;\n")
-                
+
                 # Build transition map for current state
                 next_map = defaultdict(list)
-                for c_int in range(128): # (traditional) ASCII
+                for c_int in range(128):  # (traditional) ASCII
                     char = chr(c_int)
                     key = (state_set, char)
                     if key in self.transitions:
                         next_state = self.transitions[key]
                         next_id = self.state_to_id[next_state]
                         next_map[next_id].append(c_int)
-                
+
                 # Generate optimized condition checks
                 conditions_generated = False
                 for next_id, chars in next_map.items():
                     ranges = self._get_ranges(chars)
                     condition_parts = []
-                    
+
                     for start, end in ranges:
                         if start == end:
                             c_repr = self._c_escape_char(start)
@@ -432,20 +477,20 @@ class DFACCodeGenerator:
                             condition_parts.append(
                                 f"(c >= {start_repr} && c <= {end_repr})"
                             )
-                    
+
                     condition_str = " || ".join(condition_parts)
                     f.write(f"    if ({condition_str}) ")
                     # no newline; next to the if
                     f.write(f"goto STATE_{next_id};\n")
                     conditions_generated = True
-                
+
                 # Handle dead state transitions
                 if not conditions_generated:
                     f.write("    goto DEAD;\n")
                 else:
                     f.write("    else goto DEAD;\n")
                 f.write("\n")
-            
+
             # Dead state handler
             f.write("DEAD:\n")
             f.write("    if (last_accept != NULL) {\n")
@@ -460,6 +505,7 @@ class DFACCodeGenerator:
         self.generate_header(Path(output_dir))
         self.generate_source(Path(output_dir))
 
+
 def create_nfa_for_pattern() -> Tuple[NFAState, Set[NFAState]]:
     """Create NFA for regex pattern: a(b|c)*"""
     # Create states
@@ -468,20 +514,21 @@ def create_nfa_for_pattern() -> Tuple[NFAState, Set[NFAState]]:
     q2 = NFAState(2, is_accepting=True, token_type="FINAL")
 
     # Add transitions
-    q0.char_transitions['a'] = {q1}
+    q0.char_transitions["a"] = {q1}
     q1.epsilon_transitions = {q2}
-    q2.char_transitions['b'] = {q2}
-    q2.char_transitions['c'] = {q2}
+    q2.char_transitions["b"] = {q2}
+    q2.char_transitions["c"] = {q2}
 
     nfa = NFA(start=q0, end=q2)
 
     return nfa
 
+
 # Test the implementation
 if __name__ == "__main__":
     # Create NFA components
     nfa = create_nfa_for_pattern()
-    alphabet = {'a', 'b', 'c'}
+    alphabet = {"a", "b", "c"}
 
     # Convert to DFA
     converter = DFAConverter(nfa, alphabet)
@@ -498,6 +545,11 @@ if __name__ == "__main__":
     print(f"Accept States: {len(dfa_accept)}")
 
     # Generate C code
-    code_gen = DFACCodeGenerator(converter, ["FINAL",])
+    code_gen = DFACCodeGenerator(
+        converter,
+        [
+            "FINAL",
+        ],
+    )
     code_gen.generate_code(".")
     print("C code generated successfully")

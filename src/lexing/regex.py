@@ -1,10 +1,18 @@
 from typing import List, Set, Optional
 
-from lexing.condition import Condition, SingleCharCondition, CharSetCondition, WildcardCondition, MetaCharCondition
+from lexing.condition import (
+    Condition,
+    SingleCharCondition,
+    CharSetCondition,
+    WildcardCondition,
+    MetaCharCondition,
+)
 from lexing.automata import NFA, NFAState
+
 
 class RegexParser:
     """Converts regex patterns to NFAs using recursive descent parsing (left recursion; 1 token lookahead)."""
+
     def __init__(self):
         self.state_counter = 0
         self.tokens = []
@@ -15,43 +23,43 @@ class RegexParser:
         self.tokens = self._tokenize(pattern)
         self.pos = 0
         return self._regex()
-    
+
     def _tokenize(self, pattern: str) -> List[str]:
         """Convert regex pattern into tokens for parsing."""
         tokens = []
         i = 0
         while i < len(pattern):
             c = pattern[i]
-            if c == '\\':
+            if c == "\\":
                 # Handle escape sequences
                 i += 1
                 if i >= len(pattern):
                     raise ValueError("Trailing backslash")
                 esc_char = pattern[i]
-                tokens.append(f'\\{esc_char}')
+                tokens.append(f"\\{esc_char}")
             elif c in "*+?|()":
                 tokens.append(c)
-            elif c == '[':
+            elif c == "[":
                 # Handle character classes
                 j = i + 1
                 negate = False
-                if j < len(pattern) and pattern[j] == '^':
+                if j < len(pattern) and pattern[j] == "^":
                     negate = True
                     j += 1
-                
+
                 class_chars = []
-                while j < len(pattern) and pattern[j] != ']':
-                    if pattern[j] == '\\':
+                while j < len(pattern) and pattern[j] != "]":
+                    if pattern[j] == "\\":
                         j += 1
                         if j < len(pattern):
-                            class_chars.append(f'\\{pattern[j]}')
+                            class_chars.append(f"\\{pattern[j]}")
                     else:
                         class_chars.append(pattern[j])
                     j += 1
-                
-                if j >= len(pattern) or pattern[j] != ']':
+
+                if j >= len(pattern) or pattern[j] != "]":
                     raise ValueError("Unclosed character class")
-                
+
                 tokens.append(f'[{"^" if negate else ""}{"".join(class_chars)}]')
                 i = j  # Skip to end of class
             else:
@@ -74,13 +82,13 @@ class RegexParser:
     def _regex(self) -> NFA:
         """Parse a regex pattern (top-level)."""
         terms = []
-        while (token := self._next_token()) and token != ')' and token != '|':
+        while (token := self._next_token()) and token != ")" and token != "|":
             terms.append(self._term())
-        
+
         nfa = self._build_sequence(terms) if terms else self._parse_atom()
-        
+
         # Handle alternations
-        while self._next_token() == '|':
+        while self._next_token() == "|":
             self._consume()  # Skip '|'
             terms = [self._term()]
             nfa = NFA.union([nfa, self._build_sequence(terms)])
@@ -89,7 +97,7 @@ class RegexParser:
     def _term(self) -> NFA:
         """Parse a regex term (sequence of factors)."""
         factors = []
-        while (token := self._next_token()) and token not in (')', '|', '*', '+', '?'):
+        while (token := self._next_token()) and token not in (")", "|", "*", "+", "?"):
             factors.append(self._factor())
         return self._build_sequence(factors)
 
@@ -106,13 +114,13 @@ class RegexParser:
         """Parse a factor with optional operators (*, +, ?)."""
         atom = self._parse_atom()
         token = self._next_token()
-        if token == '*':
+        if token == "*":
             self._consume()
             return NFA.star(atom)
-        elif token == '+':
+        elif token == "+":
             self._consume()
             return NFA.plus(atom)
-        elif token == '?':
+        elif token == "?":
             self._consume()
             return NFA.optional(atom)
         return atom
@@ -122,27 +130,27 @@ class RegexParser:
         token = self._consume()
         if not token:
             raise ValueError("Unexpected end of pattern")
-        
-        if token == '(':
+
+        if token == "(":
             nfa = self._regex()
-            if self._consume() != ')':
+            if self._consume() != ")":
                 raise ValueError("Unclosed parenthesis")
             return nfa
-        elif token == '.':
+        elif token == ".":
             return NFA.from_char(WildcardCondition())
-        elif token.startswith('\\'):
+        elif token.startswith("\\"):
             return self._parse_escape(token[1])
-        elif token.startswith('['):
+        elif token.startswith("["):
             return self._parse_char_class(token[1:-1])
         return NFA.from_char(SingleCharCondition(token))
 
     def _parse_escape(self, char: str) -> NFA:
         """Parse escape sequences into conditionals."""
-        if char in 'ntr':
+        if char in "ntr":
             # Handle special characters
-            mapping = {'n': '\n', 't': '\t', 'r': '\r'}
+            mapping = {"n": "\n", "t": "\t", "r": "\r"}
             return NFA.from_char(SingleCharCondition(mapping[char]))
-        elif char in 'dws':
+        elif char in "dws":
             return NFA.from_char(MetaCharCondition(char))
         # Literal escaped character
         return NFA.from_char(SingleCharCondition(char))
@@ -150,38 +158,40 @@ class RegexParser:
     def _parse_char_class(self, token: str) -> NFA:
         """Parse character class into condition set."""
         negate = False
-        if token.startswith('^'):
+        if token.startswith("^"):
             negate = True
             token = token[1:]
-        
+
         chars = set()
         i = 0
         while i < len(token):
             c = token[i]
-            if c == '\\':
+            if c == "\\":
                 i += 1
                 if i < len(token):
                     esc_char = token[i]
-                    if esc_char in 'dws':
+                    if esc_char in "dws":
                         # Expand metacharacters in class
                         meta_set = MetaCharCondition(esc_char).sets[esc_char]
                         chars |= meta_set
                     else:
                         chars.add(esc_char)
-            elif i + 2 < len(token) and token[i+1] == '-':
+            elif i + 2 < len(token) and token[i + 1] == "-":
                 # Handle character ranges
                 start = c
-                end = token[i+2]
-                chars |= set(chr(code) for code in range(ord(start), ord(end)+1))
+                end = token[i + 2]
+                chars |= set(chr(code) for code in range(ord(start), ord(end) + 1))
                 i += 2  # Skip the range characters
             else:
                 chars.add(c)
             i += 1
-        
+
         return NFA.from_char(CharSetCondition(chars, negate))
+
 
 class RegexEngine:
     """Compiles and matches regex patterns using NFAs."""
+
     def __init__(self):
         self.nfa_cache: Dict[str, NFA] = {}  # Cache compiled regexes
 
@@ -197,7 +207,7 @@ class RegexEngine:
         nfa = self.compile(pattern)
         # walk the clausure in parallel
         current_states = self._epsilon_closure({nfa.start})
-        
+
         for char in text:
             current_states = self._epsilon_closure(self._step(current_states, char))
             # The automaton halted
@@ -219,7 +229,7 @@ class RegexEngine:
         """Compute epsilon closure of NFA states."""
         closure = set(states)
         stack = list(states)
-        
+
         # iterative DFS with a stack
         while stack:
             state = stack.pop()
@@ -228,4 +238,3 @@ class RegexEngine:
                     closure.add(target)
                     stack.append(target)
         return closure
-
