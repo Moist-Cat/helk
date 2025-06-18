@@ -1,29 +1,5 @@
-type Aleph {
-    x = 5;
-    a() => 5;
-};
-
-1 + 1 + 1;
-
-print((1 + 1 * 3) / 2);
-prints("awa");
-let c = new Aleph(7);
-print(c.x);
-print(c.a());
-
-if (1) {
-    prints("hello world!");
-}
-else {
-    prints("goodbye world!");
-};
-
-let a = 5;
-
-while (a) {
-    let a = a - 1;
+let a = 5 in while(0) {
+    let a = 10 in print(a);
     print(a);
 };
-
-let x = while (0) {1;};
-print(x);
+print(a);

@@ -9,19 +9,9 @@ degrades the type
 that is, gets self.parent and calls the fun
 
 
-Add constraints to constructor fields.
-
-> let in a = stuff
-
-a = stuff
-
-...
-
-a = suff (again)
+>block is a scope
 
 Efficient during codegen (it's simply a hint)
-
-
 
 Be careful about strings named as variables!
 

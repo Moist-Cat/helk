@@ -1,0 +1,17 @@
+type Point {
+    x = "a";
+    y = 0;
+
+    do(x) => 17 + x;
+};
+
+type Point2 inherits Point {
+    z = 1;
+}
+
+type Point3 inherits Point2 {
+    pi = 6;
+    dko = "no";
+}
+
+let a = new Point3("blob", 1, 1, "qwe", "xd") in prints(a.x);

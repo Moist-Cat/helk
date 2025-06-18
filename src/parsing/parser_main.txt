@@ -1,5 +1,5 @@
 // Main parsing function
-{ast_name}* parse(Token* tokens) {{
+{ast_name}* parse(Token* tokens, int* errors) {{
     token_stream = tokens;
     current_index = -1;
     current_tok = next_token();
@@ -9,5 +9,6 @@
     if (current_tok != TOKEN_EOF) {{
         syntax_error("Input not fully consumed\n");
     }}
+    *errors = error;
     return root;
 }}

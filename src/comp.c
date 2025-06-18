@@ -112,9 +112,12 @@ int main(int argc, char** argv) {
     }
     fprintf(stderr, "\n");
 
-    ASTNode* ast = parse(tokens);
+    int errors = 0;
+    ASTNode* ast = parse(tokens, &errors);
     ast_print_node(ast, 0);
-    //return 0;
+    if (errors > 0) {
+        fprintf(stderr, "ERROR - Found %d errors during parsing\n", errors);
+    }
 
     CodegenContext ctx;
     codegen_init(&ctx, stdout);

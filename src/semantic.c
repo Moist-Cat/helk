@@ -42,27 +42,37 @@ void coerce(ASTNode* node) {
 bool solve_constraints(ConstraintSystem* cs) {
     fprintf(stderr, "INFO - Solving constraints...\n");
     bool changed;
+    bool res = true;
     do {
         changed = false;
         for(size_t i=0; i<cs->count; i++) {
             TypeConstraint* c = &cs->constraints[i];
             TypeInfo* t = c->expected;
-            if (!c->node) {
+            if (c->node == NULL) {
                 fprintf(stderr, "ERROR -Invalid constraint (c->node is null))! %p %zu\n", c->node, t->kind);
                 exit(1);
                 continue;
             }
-            fprintf(stderr, "%d\n", c->node->type);
+            //fprintf(stderr, "DEBUG - %d %p %p\n", c->node->type, t, c->node, c->node->type_info);
+            if (t == NULL) {
+                fprintf(stderr, "ERROR - Null constraint detected\n");
+                if (c->node->type == AST_VARIABLE) {
+                    // error constraint
+                    fprintf(stderr, "%s",c->node->variable.name);
+                    res = false;
+                }
+                continue;
+            }
             size_t expected = t->kind;
             size_t actual = c->node->type_info.kind;
 
-            //fprintf(stderr, "INFO - Expected: %zu ; Actual: %zu ; Node: %d\n\n", expected, actual, c->node->type);
+            fprintf(stderr, "DEBUG - Expected: %zu ; Actual: %zu ; Node: %d\n\n", expected, actual, c->node->type);
 
             if (c->node->type == AST_FUNCTION_CALL) {
-                fprintf(stderr, "For function %s\n", c->node->function_call.name);
+                //fprintf(stderr, "For function %s\n", c->node->function_call.name);
             }
             else if (c->node->type == AST_VARIABLE_DEF) {
-                fprintf(stderr, "For variable %s\n", c->node->variable_def.name);
+                //fprintf(stderr, "For variable %s\n", c->node->variable_def.name);
             }
 
             if (c->node->type_info.cls != NULL) {
@@ -89,14 +99,13 @@ bool solve_constraints(ConstraintSystem* cs) {
                actual != TYPE_UNKNOWN &&
                expected != actual) {
                // XXX
-               fprintf(stderr, "ERROR - Literal type mismatch %d; [%d, %d]\n", c->node->type, c->node->line, c->node->column);
-               exit(1);
-               return false;
+               fprintf(stderr, "ERROR - Literal type mismatch (current_type=%d); [%d, %d]\n", c->node->type, c->node->line, c->node->column);
+               res = false;
             }
         }
     } while(changed);
 
-    return true;
+    return res;
 }
 
 void add_constraint(ConstraintSystem* cs, ASTNode* node, 
@@ -106,7 +115,6 @@ void add_constraint(ConstraintSystem* cs, ASTNode* node,
         cs->constraints = realloc(cs->constraints, 
                                 cs->capacity * sizeof(TypeConstraint));
     }
-    
     cs->constraints[cs->count++] = (TypeConstraint){
         .expected = expected,
         .node = node
@@ -296,6 +304,8 @@ void process_function_call(
                 function_def->function_def.args[i],
                 function_def->function_def.name
             );
+
+            add_constraint(cs, create_ast_variable("Definition not found\n"), NULL);
             exit(1);
         }
         fprintf(stderr, "%p\n", function_def->function_def.args_definitions[i]);
@@ -381,12 +391,14 @@ void process_method_call(
 
     if(!function_def) {
         fprintf(stderr,  "ERROR - Undefined method '%s'\n", call->method_call.method);
+        add_constraint(cs, create_ast_variable("Function def not found\n"), NULL);
         exit(1);
         return;
     }
 
     if(function_def->type != AST_METHOD_DEF) {
         fprintf(stderr, "ERORR - '%s' is not a method\n", call->method_call.method);
+        add_constraint(cs, create_ast_variable("Wrong method type\n"), NULL);
         exit(1);
         return;
     }
@@ -405,6 +417,7 @@ void process_method_call(
             call->method_call.arg_count,
             function_def->function_def.arg_count
         );
+        add_constraint(cs, create_ast_variable("Argument mismatch\n"), NULL);
         exit(1);
         return;
     }
@@ -581,6 +594,7 @@ void process_node(ASTNode* node, ConstraintSystem* cs, SymbolTable* current_scop
 
             if (!variable_def) {
                 fprintf(stderr,  "Undefined variable '%s' [%d, %d]\n", node->variable.name, node->line, node->column);
+                add_constraint(cs, create_ast_variable("Undefined variable\n"), NULL);
                 exit(1);
                 break;
             }
@@ -649,6 +663,47 @@ void process_node(ASTNode* node, ConstraintSystem* cs, SymbolTable* current_scop
             lit->is_literal = true;
 
             add_constraint(cs, node, lit);
+
+            ASTNode* cls_def = symbol_table_lookup(current_scope, node->constructor.cls);
+
+            if (!cls_def) {
+                fprintf(stderr,  "Undefined class constructor '%s' [%d, %d]\n", node->constructor.cls, node->line, node->column);
+                add_constraint(cs, create_ast_variable("Undefined class constructor\n"), NULL);
+                exit(1);
+                break;
+            }
+            int index = node->constructor.arg_count - 1;
+            while (index > 0) {
+                for (int i = cls_def->type_decl.field_count - 1; i >= 0; i--) {
+                    if (i < 0) {
+                        break;
+                    }
+                    fprintf(stderr, "%d\n", i);
+                    add_constraint(
+                        cs,
+                        node->constructor.args[index],
+                        &cls_def->type_decl.fields[i]->type_info
+                    );
+                    index -= 1;
+                }
+                fprintf(stderr, "%d %d\n", cls_def->type_decl.field_count, index);
+                fprintf(stderr, "%s\n", cls_def->type_decl.base_type);
+                if (index > 0 && (cls_def->type_decl.base_type == NULL)) {
+                    fprintf(
+                        stderr,
+                        "%d extra fields in constructor [%d, %d]\n",
+                        index,
+                        node->line,
+                        node->column
+                    );
+                    add_constraint(cs, create_ast_variable("Too many fields for constructor\n"), NULL);
+                    exit(1);
+                }
+                if (cls_def->type_decl.base_type != NULL) {
+                    cls_def = symbol_table_lookup(current_scope, cls_def->type_decl.base_type);
+                }
+            }
+
             break;
         }
         case AST_METHOD_CALL: {
@@ -701,8 +756,22 @@ void process_node(ASTNode* node, ConstraintSystem* cs, SymbolTable* current_scop
                 cls->type_info.cls,
                 node->field_access.field
             );
-            ASTNode* correct_field;
-            lookup_index(node, cls, current_scope, &correct_field);
+            ASTNode* correct_field = NULL;
+            int res = lookup_index(node, cls, current_scope, &correct_field);
+
+            if (correct_field == NULL) {
+                fprintf(
+                    stderr,
+                    "ERROR - Field not found (%s, %s) [%d, %d]\n",
+                    node->field_access.cls,
+                    node->field_access.field,
+                    node->line,
+                    node->column
+                );
+                // add error constraint
+                add_constraint(cs, create_ast_variable("Field not found\n"), NULL);
+                break;
+            }
 
             add_constraint(cs, node, &correct_field->type_info);
             break;
@@ -1066,6 +1135,7 @@ void inherit(ASTNode* node, ASTNode* parent) {
                     node->type_decl.fields[i]->field_def.name,
                     node->type_decl.name
                 );
+
                 exit(1);
             }
         }
@@ -1235,6 +1305,7 @@ void _semantic_analysis(ASTNode *node, ConstraintSystem* cs, SymbolTable* scope)
             fprintf(stderr, "INFO - Found type def %s \n", node->type_decl.name);
             for (size_t i = 0; i < node->type_decl.field_count; i++) {
                 _semantic_analysis(node->type_decl.fields[i], cs, scope);
+                _semantic_analysis(node->type_decl.fields[i]->field_def.default_value, cs, scope);
             }
             for (size_t i = 0; i < node->type_decl.method_count; i++) {
                 _semantic_analysis(node->type_decl.methods[i], cs, scope);
