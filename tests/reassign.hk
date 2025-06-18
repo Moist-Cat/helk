@@ -1,0 +1,31 @@
+type Aleph {
+    x = 0;
+    y = "10";
+
+    constant() => 1000;
+
+    do(x) => self.x;   
+
+    getX() => self.x;
+};
+
+type AlephNull inherits Aleph {
+    z = 10;
+
+    do(x) => self.x + self.z + self.constant() + x;
+
+    setX(x) => self.x := x;
+
+    setY(y) => self.y := y;
+};
+
+
+let b = new Aleph(1, "20");
+let a = new AlephNull(1, "20", 10);
+b.getX();
+a.getX();
+
+print(a.setX(16));
+print(a.x);
+prints(a.setY("potato"));
+prints(a.y);
