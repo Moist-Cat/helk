@@ -19,6 +19,8 @@ typedef struct {
     int temp_counter;
     int label_counter;
     int _last_merge; // required for nested ifs
+    int _last_merge_while; // required for nested while
+    int current_label;
     Symbol* symbols;
     size_t symbols_size;
 } CodegenContext;

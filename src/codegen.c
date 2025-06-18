@@ -110,6 +110,7 @@ CodegenContext* clone_codegen_context(const CodegenContext* original) {
     clone->temp_counter = original->temp_counter;
     clone->label_counter = original->label_counter;
     clone->_last_merge = original->_last_merge;
+    clone->current_label = original->current_label;
 
     // Deep copy symbols array
     clone->symbols_size = original->symbols_size;
@@ -271,33 +272,44 @@ static char* get_constructor_args(ASTNode** args, unsigned int arg_count) {
 
 static char* gen_while_loop(CodegenContext* ctx, ASTNode* node) {
     char* body_label = new_label(ctx);
+    int body_cnt = ctx->label_counter - 1;
 
     // Initial unconditional branch to condition
+    emit(ctx, "  ; While body\n", body_label);
     emit(ctx, "  br label %%%s\n", body_label);
 
     // Body block
     emit(ctx, "%s:\n", body_label);
     gen_redefs(ctx, node->while_loop.body);
+    // set current label
+    ctx->current_label = body_cnt;
     gen_expr(ctx, node->while_loop.body);
     //free(body_temp);
 
     // Condition block
     char* cond_temp = gen_expr(ctx, node->while_loop.cond);
     char* end_label = new_label(ctx);
+    int end_cnt = ctx->label_counter - 1;
     emit(ctx, "  %%while_cond%d = fcmp one double %s, 0.000000e+00\n", ctx->temp_counter, cond_temp);
     emit(ctx, "  br i1 %%while_cond%d, label %%%s, label %%%s\n", ctx->temp_counter,
         body_label, end_label);
     //free(cond_temp);
 
     // End block
+    emit(ctx, "  ; End while\n", end_label);
     emit(ctx, "%s:\n", end_label);
+    // set current label
+    ctx->current_label = end_cnt;
 
     char* result = new_temp(ctx);
     emit(ctx, "  ; Dummy value\n", result);
     emit(ctx, "  %s = fadd double 0.000000e+00, 0.000000e+00\n", result);
 
+
+    ctx->_last_merge = end_cnt;
+
     // XXX verify this
-    fix_labels(ctx);
+    //fix_labels(ctx);
     return result;
 }
 
@@ -305,16 +317,13 @@ static char* gen_while_loop(CodegenContext* ctx, ASTNode* node) {
 static char* gen_conditional(CodegenContext* ctx, ASTNode* node) {
     int _last_merge = ctx->_last_merge;
 
+    char* hyp_temp = gen_expr(ctx, node->conditional.hypothesis);
+
     char* thesis_label = new_label(ctx);
     int thesis_cnt = ctx->label_counter - 1;
 
     char* anti_label = new_label(ctx);
     int anti_cnt = ctx->label_counter - 1;
-
-    char* merge_label = new_label(ctx);
-    int merge_cnt = ctx->label_counter - 1;
-
-    char* hyp_temp = gen_expr(ctx, node->conditional.hypothesis);
 
     // Compare condition to 0 (false)
     emit(ctx, "  %%cond%d = fcmp one double %s, 0.000000e+00\n", ctx->temp_counter++, hyp_temp);
@@ -323,8 +332,11 @@ static char* gen_conditional(CodegenContext* ctx, ASTNode* node) {
 
     // Thesis block
     emit(ctx, "%s:\n", thesis_label);
-    gen_redefs(ctx, node->conditional.thesis);
+    // update current label
+    ctx->current_label = thesis_cnt;
     char* thesis_temp = gen_expr(ctx, node->conditional.thesis);
+    char* merge_label = new_label(ctx);
+    int merge_cnt = ctx->label_counter - 1;
     emit(ctx, "  br label %%%s\n\n", merge_label);
 
     // the merge point might have changed so we have to check
@@ -336,7 +348,8 @@ static char* gen_conditional(CodegenContext* ctx, ASTNode* node) {
 
     // Antithesis block
     emit(ctx, "%s:\n", anti_label);
-    gen_redefs(ctx, node->conditional.antithesis);
+    // update current label
+    ctx->current_label = anti_cnt;
     char* anti_temp = gen_expr(ctx, node->conditional.antithesis);
     emit(ctx, "  br label %%%s\n\n", merge_label);
 
@@ -349,6 +362,8 @@ static char* gen_conditional(CodegenContext* ctx, ASTNode* node) {
 
     // Merge point
     emit(ctx, "%s:\n", merge_label);
+    // update current label
+    ctx->current_label = merge_cnt;
     char* result_temp = new_temp(ctx);
     //emit(ctx, "  %s = phi double [ %s, %%%s ], [ %s, %%%s ]\n",
     //    result_temp, thesis_temp, thesis_label, anti_temp, anti_label);
@@ -580,10 +595,16 @@ void gen_redefs(CodegenContext* ctx, ASTNode* node) {
                 char* t2 = new_temp(ctx);
                 char* t3 = new_temp(ctx);
 
+                int lbl = ctx->current_label;
+                //if (ctx->_last_merge != ctx->label_counter - 2) {
+                //    int lbl = ctx->_last_merge;
+                //}
+                fprintf(stderr, "-----> %d", ctx->current_label);
+
                 emit(
                     ctx,
                     "  %s = phi %s [%s, %%l%d], [%s, %%l%d]\n",
-                    t2, type, t1, symbol->label, t3, ctx->label_counter - 1
+                    t2, type, t1, lbl, t3, ctx->label_counter - 1
                 );
 
                 // probably uses the variable (or another variable, recall the gcd algorithm)
@@ -641,6 +662,7 @@ void codegen_stmt(CodegenContext* ctx, ASTNode* node) {
         }
 
         char* entry_label = new_label(fun_ctx);
+        int entry_cnt = fun_ctx->label_counter - 1;
         unsigned int arg_count = node->function_def.arg_count;
 
         for (unsigned int i = 0; i < arg_count; i++) {
@@ -671,6 +693,8 @@ void codegen_stmt(CodegenContext* ctx, ASTNode* node) {
             emit(fun_ctx, "\ndefine %s @%s() {\n", type, node->function_def.name);
         }
         emit(fun_ctx, "%s:\n", entry_label);
+        fun_ctx->current_label = entry_cnt;
+        fprintf(stderr, "-----> %d\n", entry_cnt);
 
         char* result = gen_expr(fun_ctx, node->function_def.body);
 

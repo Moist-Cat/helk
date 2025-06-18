@@ -122,6 +122,8 @@ TypeMemberList: IDENTIFIER TypeMember SEMICOLON TypeMemberListTail $
         members[i+1] = _TypeMemberListTail->block.statements[i];
     }
     node = create_ast_block(members, count);
+
+    | epsilon
 @
 
 TypeMemberListTail: IDENTIFIER TypeMember SEMICOLON TypeMemberListTail $
