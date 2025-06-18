@@ -160,9 +160,8 @@ void fix_labels(CodegenContext* ctx) {
      * Values modified inside loops do not persist
      */
     for (size_t i = 0; i < ctx->symbols_size; i++) {
-        if (ctx->symbols[i].label  != ctx->symbols[i].previous_label) {
+        if (ctx->symbols[i].label != ctx->symbols[i].previous_label) {
             fprintf(stderr, "INFO - Fixing redefinition of %s after exiting loop", ctx->symbols[i].name);
-            free(ctx->symbols[i].temp);
             ctx->symbols[i].temp = strdup(ctx->symbols[i].previous_label_name);
         }
     }
@@ -298,7 +297,7 @@ static char* gen_while_loop(CodegenContext* ctx, ASTNode* node) {
     emit(ctx, "  %s = fadd double 0.000000e+00, 0.000000e+00\n", result);
 
     // XXX verify this
-    //fix_labels(ctx);
+    fix_labels(ctx);
     return result;
 }
 
@@ -324,6 +323,7 @@ static char* gen_conditional(CodegenContext* ctx, ASTNode* node) {
 
     // Thesis block
     emit(ctx, "%s:\n", thesis_label);
+    gen_redefs(ctx, node->conditional.thesis);
     char* thesis_temp = gen_expr(ctx, node->conditional.thesis);
     emit(ctx, "  br label %%%s\n\n", merge_label);
 
@@ -336,6 +336,7 @@ static char* gen_conditional(CodegenContext* ctx, ASTNode* node) {
 
     // Antithesis block
     emit(ctx, "%s:\n", anti_label);
+    gen_redefs(ctx, node->conditional.antithesis);
     char* anti_temp = gen_expr(ctx, node->conditional.antithesis);
     emit(ctx, "  br label %%%s\n\n", merge_label);
 
@@ -409,7 +410,7 @@ static char* gen_expr(CodegenContext* ctx, ASTNode* node) {
         }            
         case AST_VARIABLE: {
             Symbol* symbol = fetch_symbol(ctx, node->variable.name);
-            emit(ctx, "  ; Load variable %s\n", node->variable.name);
+            emit(ctx, "  ; Load variable %s (%s)\n", node->variable.name, symbol->temp);
             if (symbol->temp == NULL) {
                 exit(1);
             }
@@ -505,7 +506,14 @@ static char* gen_expr(CodegenContext* ctx, ASTNode* node) {
             return temp;
         }
         case AST_BLOCK: {
-            return codegen_expr_block(ctx, node);
+            CodegenContext* new_ctx = clone_codegen_context(ctx);
+            char* temp = codegen_expr_block(new_ctx, node);
+            // Shallow copy simple members
+            ctx->temp_counter = new_ctx->temp_counter;
+            ctx->label_counter = new_ctx->label_counter;
+            ctx->_last_merge = new_ctx->_last_merge;
+            return temp;
+            //return codegen_expr_block(ctx, node);
         }
         default: {
             fprintf(stderr, "Error: Failed to parse %d because it is not an expression! \n", node->type);
@@ -590,7 +598,8 @@ void gen_redefs(CodegenContext* ctx, ASTNode* node) {
         }
 
         case AST_CONDITIONAL: {
-            // XXX
+            gen_redefs(ctx, node->conditional.thesis);
+            gen_redefs(ctx, node->conditional.antithesis);
             break;
         }
         case AST_WHILE_LOOP: {

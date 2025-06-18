@@ -1,6 +1,6 @@
 let a = 5;
 
 while (min(max(a, 0), 1)) {
-    let a = a - 1;
     print(a);
+    let a = a - 1;
 };
