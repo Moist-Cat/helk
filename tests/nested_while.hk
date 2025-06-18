@@ -1,0 +1,10 @@
+prints("Nested while");
+let d = 10;
+while (d) {
+    let d = d - 1;
+    let e = 10;
+    while (e) {
+        let e = e - 1;
+        print(e + d);
+    };
+};
