@@ -1,0 +1,11 @@
+prints("if-while");
+let d = 10;
+while (d) {
+    let d = d - 1;
+    if (min(max(d - 5, 0), 1)) {
+        prints("foo");
+    }
+    else {
+        0;
+    };
+};
