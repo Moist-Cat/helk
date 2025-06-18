@@ -922,6 +922,7 @@ ASTNode* transform_ast(ASTNode* node, SymbolTable* scope) {
             }                      
             break;
         }
+        case AST_METHOD_DEF:
         case AST_FUNCTION_DEF: {
             fprintf(stderr, "Transforming AST_FUNCTION_DEF\n");
             node->function_def.body = transform_ast(node->function_def.body, scope);
@@ -987,7 +988,6 @@ ASTNode* transform_ast(ASTNode* node, SymbolTable* scope) {
         }
         case AST_TYPE_DEF: {
             fprintf(stderr, "INFO - Found type def %s\n", node->type_decl.name);
-            // XXX double
             for (size_t i = 0; i < node->type_decl.method_count; i++) {
                 node->type_decl.methods[i] = transform_ast(node->type_decl.methods[i], scope);
             }

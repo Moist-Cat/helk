@@ -18,6 +18,7 @@
 
     # Multi-character operators
     ("ARROW", r"=>"),
+    ("REASSIGN", r":="),
     # Single-character operators and punctuation
     ("DOT", r"\."),
     ("SEMICOLON", r";"),

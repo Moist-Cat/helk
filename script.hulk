@@ -1,4 +1,12 @@
-let a = 10 in while(0) {
-    let a = 5 in print(a);
-    print(a);
+type Point {
+    x = 0;
+    y = 0;
+
+    getX() => self.getY();
+    getY() => self.y;
+
+    setY() => self.y := 7;
 };
+
+let a = new Point(10, 15);
+print(a.getX());

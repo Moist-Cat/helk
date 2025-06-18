@@ -106,6 +106,10 @@ int main(int argc, char** argv) {
 
     unsigned int num_tokens = 0;
     Token* tokens = lexer(data, strlen(data), &num_tokens);
+    if (tokens == NULL) {
+        fprintf(stderr, "ERROR - Detected error(s) during tokenization\n");
+        exit(1);
+    }
 
     for (unsigned int i = 0; i < num_tokens; i++) {
         fprintf(stderr, "%s ", tokens[i].value);
@@ -117,6 +121,7 @@ int main(int argc, char** argv) {
     ast_print_node(ast, 0);
     if (errors > 0) {
         fprintf(stderr, "ERROR - Found %d errors during parsing\n", errors);
+        exit(1);
     }
 
     CodegenContext ctx;
