@@ -428,6 +428,9 @@ Factor: NUMBER FactorTail $
             _FactorTail->method_call.cls->variable.name = _IDENTIFIER.value;
             fprintf(stderr, "INFO - Called method: %s.%s\n", _FactorTail->method_call.cls->variable.name, _FactorTail->method_call.method);
         }
+        else if (node->type == AST_FIELD_REASSIGN) {
+            _FactorTail->field_reassign.field_access->field_access.cls = _IDENTIFIER.value;
+        }
         else {
             _FactorTail->variable.name = _IDENTIFIER.value;  // Set identifier name
         }
@@ -470,6 +473,9 @@ FactorTail: LPAREN ArgList RPAREN $
     else if (node->type == AST_METHOD_CALL) {
         _ClassStuff->method_call.method = _IDENTIFIER.value;
     }
+    else if (node->type == AST_FIELD_REASSIGN) {
+        _ClassStuff->field_reassign.field_access->field_access.field = _IDENTIFIER.value;
+    }
 
     | epsilon
 @
@@ -488,6 +494,12 @@ ClassStuff: LPAREN ArgList RPAREN $
         new_args,
         new_count
     );
+    | REASSIGN IDENTIFIER $
+        node = create_ast_field_reassign(
+            create_ast_field_access("", ""),
+            _IDENTIFIER.value
+        );
+
     |  epsilon $
     // Field access
     node = create_ast_field_access("", "");

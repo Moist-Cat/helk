@@ -1,57 +1,31 @@
 type Aleph {
     x = 0;
-    y = "set";
+    y = "10";
 
     constant() => 1000;
 
-    do(x) => self.x;
+    do(x) => self.x;   
+
+    getX() => self.x;
 };
 
 type AlephNull inherits Aleph {
     z = 10;
 
     do(x) => self.x + self.z + self.constant() + x;
+
+    setX(x) => self.x := x;
+
+    setY(y) => self.y := y;
 };
 
-function gcd(a, b) => while (a) {
-    let m = a % print(b), b = a, a = m in a;
-};
 
-function f(a, b) => while (a) {
-    let a = a - 1 in print(a);
-};
+let b = new Aleph(1, "20");
+let a = new AlephNull(1, "20", 10);
+b.getX();
+a.getX();
 
-function fib(n) =>
-    if (min(max(n - 2, 0), 1)) {
-        fib(n - 1) + fib(n - 2);
-    }
-    else {
-        1;
-    };
-
-prints("Conflagration of all things");
-let d = 10;
-let e = 10;
-let aleph = new AlephNull(10, "dummy", 10);
-print(aleph.do(5));
-while (d) {
-    let d = d - 1;
-    let e = e - 10;
-    if (min(max(d - 5, 0), 1)) {
-        prints("Scoping");
-        let a = 10 in while(0) {
-            let a = 5 in print(a);
-            print(a);
-        };
-        prints("Fib:");
-        print(fib(d));
-        prints("Aleph:");
-        print(aleph.do(e));
-    }
-    else {
-        print(1 + 1 + 1);
-        prints("GCD:");
-        print(gcd(e, d));
-    };
-};
-print(e);
+print(a.setX(16));
+print(a.x);
+prints(a.setY("potato"));
+prints(a.y);

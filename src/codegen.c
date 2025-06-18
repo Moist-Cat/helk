@@ -550,6 +550,20 @@ static char* gen_expr(CodegenContext* ctx, ASTNode* node) {
             fprintf(stderr, "node_type=%zu; field_type=%zu pos=%d\n", symbol->node->type_info.kind, node->type_info.kind, node->field_access.pos);
             return temp;
         }
+        case AST_FIELD_REASSIGN: {
+            fprintf(stderr, "Reassigning field \n");
+            char* temp = gen_expr(ctx, node->field_reassign.field_access);
+            emit(
+                ctx,
+                "  store %s %%%s, %s* %s_ptr\n",
+                joink_type(node->field_reassign.field_access),
+                node->field_reassign.value,
+                joink_type(node->field_reassign.field_access),
+                temp
+            );
+            return temp;
+        }
+
         case AST_BLOCK: {
             CodegenContext* new_ctx = clone_codegen_context(ctx);
             char* temp = codegen_expr_block(new_ctx, node);

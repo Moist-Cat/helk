@@ -101,6 +101,7 @@ bool solve_constraints(ConstraintSystem* cs) {
                // XXX
                fprintf(stderr, "ERROR - Literal type mismatch (current_type=%d); [%d, %d]\n", c->node->type, c->node->line, c->node->column);
                res = false;
+               exit(1);
             }
         }
     } while(changed);
@@ -776,6 +777,10 @@ void process_node(ASTNode* node, ConstraintSystem* cs, SymbolTable* current_scop
             add_constraint(cs, node, &correct_field->type_info);
             break;
         }
+        case AST_FIELD_REASSIGN: {
+            ASTNode* val = symbol_table_lookup(current_scope, node->field_reassign.value);
+            add_constraint(cs, node, &val->type_info);
+        }
         case AST_FIELD_DEF: {
             add_constraint(cs, node, &node->field_def.default_value->type_info);
             break;
@@ -1323,6 +1328,15 @@ void _semantic_analysis(ASTNode *node, ConstraintSystem* cs, SymbolTable* scope)
             );
             _semantic_analysis(node->field_def.default_value, cs, scope);
             break;
+        }
+        case AST_FIELD_REASSIGN: {
+            fprintf(
+                stderr,
+                "INFO - Found field reassign %s.%s\n",
+                node->field_reassign.field_access->field_access.cls,
+                node->field_reassign.field_access->field_access.field
+            );
+            _semantic_analysis(node->method_call.cls, cs, scope);
         }
         case AST_FIELD_ACCESS: {
             // XXX

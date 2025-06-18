@@ -202,12 +202,26 @@ ASTNode *create_ast_constructor(char* cls, ASTNode **args, unsigned int arg_coun
 
     return node;
 }
-
 ASTNode *create_ast_field_access(char* cls, char* field) {
     ASTNode *node = malloc(sizeof(ASTNode));
     node->type = AST_FIELD_ACCESS;
     node->field_access.cls = strdup(cls);
     node->field_access.field = strdup(field);
+
+    node->type_info.kind = TYPE_UNKNOWN;
+    node->type_info.name = NULL;
+    node->type_info.cls = NULL;
+    node->type_info.is_literal = false;
+
+    return node;
+}
+
+
+ASTNode *create_ast_field_reassign(ASTNode* field_access, char* value) {
+    ASTNode *node = malloc(sizeof(ASTNode));
+    node->type = AST_FIELD_REASSIGN;
+    node->field_reassign.field_access = field_access;
+    node->field_reassign.value = strdup(value);
 
     node->type_info.kind = TYPE_UNKNOWN;
     node->type_info.name = NULL;

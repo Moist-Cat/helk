@@ -44,6 +44,7 @@ typedef enum {
     AST_CONSTRUCTOR,
     AST_FIELD_DEF,
     AST_FIELD_ACCESS,
+    AST_FIELD_REASSIGN,
     AST_METHOD_CALL
 } ASTNodeType;
 
@@ -120,6 +121,10 @@ typedef struct ASTNode {
             unsigned int pos; // added later
         } field_access;
         struct {
+            struct ASTNode* field_access;
+            char* value;
+        } field_reassign;
+        struct {
             char* name;
             struct ASTNode* default_value;
         } field_def;
@@ -158,6 +163,7 @@ ASTNode* create_ast_constructor(char* cls, ASTNode** args, unsigned int arg_coun
 ASTNode* create_ast_field_def(char* name, ASTNode* default_value);
 ASTNode* create_ast_field_access(char* cls, char* field);
 ASTNode* create_ast_method_call(ASTNode* cls, char* method, ASTNode** args, unsigned int arg_count);
+ASTNode *create_ast_field_reassign(ASTNode* field_access, char* value);
 
 ASTNode* create_ast_param_list(char **params, unsigned int count);
 ASTNode* create_ast_variable_list(char **names, ASTNode **values, unsigned int count);
