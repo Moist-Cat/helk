@@ -101,7 +101,6 @@ bool solve_constraints(ConstraintSystem* cs) {
                // XXX
                fprintf(stderr, "ERROR - Literal type mismatch (current_type=%d); [%d, %d]\n", c->node->type, c->node->line, c->node->column);
                res = false;
-               exit(1);
             }
         }
     } while(changed);
@@ -913,6 +912,42 @@ static ASTNode* transform_method_call(ASTNode* node, SymbolTable* scope) {
 
     return new_node;
 }
+
+
+void transform_base(ASTNode* node, ctx, SymbolTable* scope) {
+    if (node->type_decl.base_type == NULL) {
+        return;
+    }
+    // Add base function to methods if there's a parent
+    for (size_t i = 0; i < node->type_decl.method_count; i++) {
+        // Create base function only for methods that exist in parent
+        char* method_name = node->type_decl.methods[i]->function_def.name;
+        char parent_method_name[256];
+        ASTNode* base_call = lookup_method(method_name, node, scope);
+
+        // Create base function call: parent_method(self, ...)
+        // Create base function: base() => parent_method(...)
+        ASTNode* base_func = create_ast_function_def(
+            "base",
+            NULL,  // No parameters
+            0,
+            base_call
+        );
+        
+        // Add base function to method body
+        //ASTNode* new_body = create_block();
+        //new_body->block.stmt_count = 1;
+        //new_body->block.statements = malloc(sizeof(ASTNode*));
+        //new_body->block.statements[0] = base_func;
+        
+        // Append original body
+        //append_to_block(new_body, node->type_decl.methods[i]->function.body);
+        
+        // Replace method body
+        //node->type_decl.methods[i]->function.body = new_body;
+    }
+}
+
 
 ASTNode* transform_ast(ASTNode* node, SymbolTable* scope) {
     fprintf(stderr, "Node type=%d\n", node->type);

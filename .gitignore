@@ -21,6 +21,9 @@ out/
 build/
 hulk/
 comp
+report/*.log
+report/*.aux
+report/*.out
 
 # test
 **/__pycache__/*
