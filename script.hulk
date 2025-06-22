@@ -1,11 +1,22 @@
 type A {
     x = 5;
     y = 10;
+
+    baz() => 42;
+
+    bar() => 5;
 };
 
-type B inherits A {};
+type B inherits A {
 
-type C inherits A {};
+    bar() => 10;
+};
+
+type C inherits A {
+
+    bar() => 15;
+
+};
 
 function foo(x) =>
 if (x) {
@@ -15,6 +26,5 @@ if (x) {
 };
 
 let a = foo(1);
-print(a.y);
-let b = foo(0);
-print(b.y);
+print(a.baz());
+print(a.bar());

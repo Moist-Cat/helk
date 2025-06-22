@@ -25,6 +25,7 @@ typedef struct TypeInfo {
     char* name; // what to print
     char* cls; // ...
     unsigned int is_literal;
+    unsigned int is_polymorphic;
     struct TypeInfo* parent;
 } TypeInfo;
 
@@ -134,6 +135,7 @@ typedef struct ASTNode {
             char* method;
             struct ASTNode** args;
             unsigned int arg_count;
+            unsigned int pos; // added later as well
         } method_call;
         // extra (not used after parsing)
         struct {

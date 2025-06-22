@@ -132,6 +132,7 @@ bool solve_constraints(ConstraintSystem* cs) {
                 c->node->type_info.name = ((TypeInfo*) (c->expected))->name;
                 c->node->type_info.cls = ((TypeInfo*) (c->expected))->cls;
                 c->node->type_info.parent = ((TypeInfo*) (c->expected))->parent;
+                c->node->type_info.is_polymorphic = ((TypeInfo*) (c->expected))->is_polymorphic;
 
                 changed = true;
             }
@@ -154,11 +155,13 @@ bool solve_constraints(ConstraintSystem* cs) {
                     c->node->type_info.name = ((TypeInfo*) (c->expected))->name;
                     c->node->type_info.cls = ((TypeInfo*) (c->expected))->cls;
                     c->node->type_info.parent = ((TypeInfo*) (c->expected))->parent;
+                    c->node->type_info.is_polymorphic = true;
 
                     t->kind = ca->kind;
                     t->name = ca->name;
                     t->cls = ca->cls;
                     t->parent = ca->parent;
+                    t->is_polymorphic = true;
                 }
             }
         }
@@ -316,6 +319,47 @@ int lookup_index(ASTNode* node, ASTNode* cls, SymbolTable* scope, ASTNode** corr
         }
     }
     return -(cls->type_decl.field_count + index);
+}
+
+int lookup_method_index(ASTNode* node, ASTNode* cls, SymbolTable* scope) {
+    int index = 0;
+    if (cls->type_decl.base_type) {
+        fprintf(
+            stderr,
+            "INFO - Found child class '%s' of '%s'\n",
+            cls->type_decl.name,
+            cls->type_decl.base_type
+        );
+        ASTNode* parent = symbol_table_lookup(scope, cls->type_decl.base_type);
+
+        int temp = lookup_method_index(node, parent, scope);
+
+        if (temp > 0) {
+            return temp;
+        }
+        // positive
+        // this is the number of methods
+        index = -temp;
+    }
+
+    for (int i = 0; i < (int) cls->type_decl.method_count; i++) {
+        fprintf(
+            stderr,
+            "DEBUG - Comparing %s and %s during method access\n",
+            cls->type_decl.methods[i]->function_def.name,
+            node->method_call.method
+         );
+        if (strcmp(cls->type_decl.methods[i]->function_def.name, node->method_call.method) == 0) {
+            fprintf(
+                stderr,
+                "INFO - Found position for %s -> %d\n",
+                cls->type_decl.methods[i]->function_def.name,
+                i + index
+             );
+            node->method_call.pos = i + index;
+        }
+    }
+    return -(cls->type_decl.method_count + index);
 }
 
 void process_function_call(
@@ -494,17 +538,11 @@ void process_method_call(
         fprintf(stderr, "INFO - Method of type=%d (i=%zu)\n", call->method_call.args[i]->type, i);
         _semantic_analysis(call->method_call.args[i], cs, func_scope);
 
-        // Add constraint: arg_type == param_type
-        // Avoid adding constraints for self
-        // self is passed implicitly so we will get an
-        // error otherwise
-        if (!(i == 0 && (function_def->function_def.args_definitions[i]->type_info.kind != TYPE_UNKNOWN))) {
-            add_constraint(
-                cs,
-                function_def->function_def.args_definitions[i],
-                &call->method_call.args[i]->type_info
-            );
-        }
+        add_constraint(
+            cs,
+            function_def->function_def.args_definitions[i],
+            &call->method_call.args[i]->type_info
+        );
 
         // Add parameter to symbol table
         fprintf(
@@ -782,6 +820,12 @@ void process_node(ASTNode* node, ConstraintSystem* cs, SymbolTable* current_scop
                 cs,
                 current_scope
             );
+
+            if (!node->method_call.cls->type_info.cls) {
+                break;
+            }
+            ASTNode* cls = symbol_table_lookup(current_scope, node->method_call.cls->type_info.cls);
+            lookup_method_index(node, cls, current_scope);
             break;
         }
 
@@ -979,17 +1023,9 @@ static ASTNode* transform_method_call(ASTNode* node, SymbolTable* scope) {
     // the type was already inferred
 
     char* mname = new_method(node->method_call.cls->type_info.cls, node);
-    ASTNode* new_node = create_ast_function_call(
-        mname,
-        node->method_call.args,
-        node->method_call.arg_count
-    );
+    node->method_call.method = mname;
 
-    new_node->type_info.kind = node->type_info.kind;
-    new_node->type_info.name = node->type_info.name;
-    new_node->type_info.cls = node->type_info.cls;
-
-    return new_node;
+    return node;
 }
 
 
@@ -1053,6 +1089,7 @@ ASTNode* transform_ast(ASTNode* node, SymbolTable* scope) {
                 pow_args[0] = node->binary_op.left;
                 pow_args[1] = node->binary_op.right;
                 node = create_ast_function_call("pow", pow_args, 2);
+                node->type_info.kind = TYPE_DOUBLE;
             }
             break;
         }
@@ -1079,7 +1116,7 @@ ASTNode* transform_ast(ASTNode* node, SymbolTable* scope) {
                 node->type_decl.fields[i] = transform_ast(node->type_decl.fields[i], scope);
             }
 
-            //coerce(node);
+            coerce(node);
 
             if (node->type_decl.base_type) {
                 fprintf(
@@ -1211,7 +1248,7 @@ void inherit(ASTNode* node, ASTNode* parent) {
     for (unsigned int i = 0; i < node->type_decl.field_count; i++) {
         for (unsigned int j = i; j < parent->type_decl.field_count; j++) {
             if (
-                node->type_decl.fields[i]->field_def.name == parent->type_decl.fields[i]->field_def.name
+                strcmp(node->type_decl.fields[i]->field_def.name, parent->type_decl.fields[j]->field_def.name) == 0
             ) {
                 fprintf(
                     stderr,
@@ -1238,66 +1275,64 @@ void inherit(ASTNode* node, ASTNode* parent) {
         node->type_decl.fields[i] = parent->type_decl.fields[i];
     }
 
+    unsigned int counter = 0;
+    old_count = node->type_decl.method_count;
     node->type_decl.methods = realloc(
         node->type_decl.methods,
         (node->type_decl.method_count + parent->type_decl.method_count) * sizeof(ASTNode*)
     );
-    unsigned int counter = 0;
-    bool flag = false;
+    for (unsigned int i = old_count; i < parent->type_decl.method_count + old_count; i++) {
+        node->type_decl.methods[i] = NULL;
+    }
+
     for (unsigned int i = 0; i < parent->type_decl.method_count; i++) {
-        flag = false;
-        for (unsigned int j = 0; j < node->type_decl.method_count; j++) {
+        if (i < old_count) {
             // reallocate own field first
-            if (
-                strcmp(
-                    node->type_decl.methods[j]->function_def.name,
-                    parent->type_decl.methods[i]->function_def.name
-                ) == 0
-            ) {
-                fprintf(
-                    stderr,
-                    "%s appears in both parent and child\n",
-                    node->type_decl.methods[j]->function_def.name
-                );
-                flag = true;
-                break;
+            for (unsigned int j = 0; j < parent->type_decl.method_count; j++) {
+                if (
+                    strcmp(
+                        node->type_decl.methods[i]->function_def.name,
+                        parent->type_decl.methods[j]->function_def.name
+                    ) == 0
+                ) {
+                    fprintf(
+                        stderr,
+                        "%s appears in both parent and child\n",
+                        node->type_decl.methods[i]->function_def.name
+                    );
+                    counter += 1;
+                    if (node->type_decl.methods[j] == NULL) {
+                        // lucky
+                        node->type_decl.methods[j] = node->type_decl.methods[i];
+                    }
+                    else {
+                        ASTNode* temp = node->type_decl.methods[j];
+                        node->type_decl.methods[j] = node->type_decl.methods[i];
+                        // move to correct position
+                        node->type_decl.methods[i] = temp;
+                    }
+                    break;
+                }
             }
-        }
-        if (flag) {
-            continue;
+            node->type_decl.methods[i + parent->type_decl.method_count] = parent->type_decl.methods[i];
         }
         fprintf(
             stderr,
-            "INFO - (counter=%d, method_count=%d, parent_method=%s\n)",
+            "INFO - (counter=%d, method_count=%d, parent_method=%s i=%d)\n",
             counter,
-            node->type_decl.method_count, parent->type_decl.methods[i]->function_def.name
+            node->type_decl.method_count, parent->type_decl.methods[i]->function_def.name,
+            i
         );
-        // create a new one since we modify the name in codegen to
-        // detach the method
-        node->type_decl.methods[counter + node->type_decl.method_count] = create_ast_function_def(
-            parent->type_decl.methods[i]->function_def.name,
-            parent->type_decl.methods[i]->function_def.body,
-            parent->type_decl.methods[i]->function_def.args,
-            parent->type_decl.methods[i]->function_def.arg_count
-        );
-
-        // propagate called
-        node->type_decl.methods[counter + node->type_decl.method_count]->function_def.called = parent->type_decl.methods[i]->function_def.called;
-
-        // typeshit
-        node->type_decl.methods[counter + node->type_decl.method_count]->type_info.kind = parent->type_decl.methods[i]->type_info.kind;
-        node->type_decl.methods[counter + node->type_decl.method_count]->type_info.name = parent->type_decl.methods[i]->type_info.name;
-        node->type_decl.methods[counter + node->type_decl.method_count]->type_info.cls = parent->type_decl.methods[i]->type_info.cls;
-
-        // propagate types
-        for (unsigned int pk = 1; pk < node->type_decl.methods[counter + node->type_decl.method_count]->function_def.arg_count; pk++) {
-            node->type_decl.methods[counter + node->type_decl.method_count]->function_def.args_definitions[pk] = parent->type_decl.methods[i]->function_def.args_definitions[pk];
+        if (
+            strcmp(
+                node->type_decl.methods[i]->function_def.name,
+                parent->type_decl.methods[i]->function_def.name
+            ) == 0
+        ) {
+            // do not copy overriden method
+            continue;
         }
-        // self
-        node->type_decl.methods[counter + node->type_decl.method_count]->function_def.args_definitions[0]->type_info.name = new_instance_type(node->type_decl.name);
-        node->type_decl.methods[counter + node->type_decl.method_count]->function_def.args_definitions[0]->type_info.cls = strdup(node->type_decl.name);
-        node->type_decl.methods[counter + node->type_decl.method_count]->function_def.args_definitions[0]->type_info.kind = hash(node->type_decl.name);
-        counter += 1;
+        node->type_decl.methods[i] = parent->type_decl.methods[i];
     }
 
     fprintf(
@@ -1307,7 +1342,12 @@ void inherit(ASTNode* node, ASTNode* parent) {
         node->type_decl.field_count
     );
 
-    node->type_decl.method_count += counter;
+    unsigned int final_count = (parent->type_decl.method_count + node->type_decl.method_count) - counter;
+    node->type_decl.method_count = final_count;
+    node->type_decl.methods = realloc(
+        node->type_decl.methods,
+        (final_count) * sizeof(ASTNode*)
+    );
 }
 
 void _semantic_analysis(ASTNode *node, ConstraintSystem* cs, SymbolTable* scope) {

@@ -208,6 +208,8 @@ ASTNode *create_ast_field_access(char* cls, char* field) {
     node->field_access.cls = strdup(cls);
     node->field_access.field = strdup(field);
 
+    node->field_access.pos = 69;
+
     node->type_info.kind = TYPE_UNKNOWN;
     node->type_info.name = NULL;
     node->type_info.cls = NULL;
@@ -246,11 +248,13 @@ ASTNode *create_ast_method_call(ASTNode* cls, char* method, ASTNode **args, unsi
         node->method_call.args = NULL;
     }
     node->method_call.arg_count = arg_count;
+    node->method_call.pos = 69;
 
     node->type_info.kind = TYPE_UNKNOWN;
     node->type_info.name = NULL;
     node->type_info.cls = NULL;
     node->type_info.is_literal = false;
+
 
     return node;
 }

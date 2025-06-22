@@ -20,7 +20,7 @@ char* joink_type(ASTNode* node) {
     }
     else if (node->type_info.kind == TYPE_UNKNOWN) {
         fprintf(stderr, "WARNING - Type of node %d unknown during codegen\n", node->type);
-        return "double";
+        return "(unkown)";
     }
     else {
         //return node->type_info.name;
@@ -216,7 +216,6 @@ static char* get_call_args(CodegenContext* ctx, ASTNode** args, unsigned int arg
         ptr += written;
     }
 
-    free(temps);
     return result;
 }
 
@@ -271,6 +270,120 @@ static char* get_constructor_args(ASTNode** args, unsigned int arg_count) {
     free(temps);
     return result;
 }
+
+// Generate vtable structure
+void generate_vtable(CodegenContext* ctx, ASTNode* node) {
+    // Define vtable structure type
+    emit(ctx, "%%struct.%s_vtable = type {", node->type_decl.name);
+    for (size_t i = 0; i < node->type_decl.method_count; i++) {
+        if (i > 0) emit(ctx, ", ");
+        ASTNode* method = node->type_decl.methods[i];
+        emit(
+            ctx,
+            "%s (%s)*",
+            joink_type(method),
+            get_constructor_types(
+                ctx,
+                method->function_def.args_definitions,
+                method->function_def.arg_count
+            )
+        );
+    }
+    emit(ctx, "}\n");
+
+    // Create global vtable instance
+    emit(ctx, "@%s_vtable = global %%struct.%s_vtable {", node->type_decl.name, node->type_decl.name);
+    for (size_t i = 0; i < node->type_decl.method_count; i++) {
+        if (i > 0) emit(ctx, ", ");
+        char* mangled_name;
+        if (node->type_decl.methods[i]->function_def.args_definitions[0]->type_info.kind != node->type_info.kind) {
+            mangled_name = node->type_decl.methods[i]->function_def.name;
+        }
+        else {
+            mangled_name = detach_method(node->type_decl.name,
+                node->type_decl.methods[i]->function_def.name);
+        }
+        ASTNode* method = node->type_decl.methods[i];
+        emit(
+            ctx,
+            "%s (%s)*",
+            joink_type(method),
+            get_constructor_types(
+                ctx,
+                method->function_def.args_definitions,
+                method->function_def.arg_count
+            )
+        );
+        emit(ctx, " @%s", mangled_name);
+    }
+    emit(ctx, "}\n");
+}
+
+void gen_method_call(CodegenContext* ctx, ASTNode* node) {
+    /*
+     * We have a (virtual) method call, we want to figure out if we
+     * should generate a static call or a virtual call using
+     * vtable lookups
+     */
+    emit(ctx, "\n  ; Start virtual method call\n");
+    char* temp = new_temp(ctx);
+
+    // Get object pointer from 'self'
+    ASTNode* instance = node->method_call.cls;
+
+    // generated twice
+    char* obj_temp = gen_expr(ctx, node->method_call.args[0]);
+
+    // Cast vtable pointer
+    char* vtable_ptr_temp = new_temp(ctx);
+    char* cls = instance->type_info.cls;
+    emit(ctx, "  %s = bitcast i8* %s to %%struct.%s*\n",
+         vtable_ptr_temp, obj_temp, cls);
+
+    // Load vtable
+    char* vtable_temp = new_temp(ctx);
+    emit(ctx, "  %s = getelementptr %%struct.%s, %%struct.%s* %s, i32 0, i32 0\n",
+         vtable_temp, cls, cls, vtable_ptr_temp);
+    emit(ctx, "  %s_vtable = load %%struct.%s_vtable*, %%struct.%s_vtable** %s\n",
+         vtable_temp, cls, cls, vtable_temp);
+
+    // Get method pointer
+    int method_index = node->method_call.pos;
+    char* method_ptr_temp = new_temp(ctx);
+    emit(ctx, "  %s = getelementptr %%struct.%s_vtable, %%struct.%s_vtable* %s_vtable, i32 0, i32 %d\n",
+         method_ptr_temp, cls, cls, vtable_temp, method_index);
+
+    // Load function pointer
+    char* func_ptr_temp = new_temp(ctx);
+    emit(ctx, "  %s = load ", func_ptr_temp);
+    emit(
+        ctx,
+        "%s (%s)*",
+        joink_type(node),
+        get_constructor_types(
+            ctx,
+            node->function_def.args_definitions,
+            node->function_def.arg_count
+        )
+    );
+    emit(ctx, ", ");
+    emit(
+        ctx,
+        "%s (%s)**",
+        joink_type(node),
+        get_constructor_types(
+            ctx,
+            node->function_def.args_definitions,
+            node->function_def.arg_count
+        )
+    );
+    emit(ctx, " %s\n", method_ptr_temp);
+
+    node->method_call.method = func_ptr_temp;
+    emit(ctx, "  ; End virtual method call\n\n");
+    return;
+}
+
 
 static char* gen_while_loop(CodegenContext* ctx, ASTNode* node) {
     char* body_label = new_label(ctx);
@@ -498,22 +611,43 @@ static char* gen_expr(CodegenContext* ctx, ASTNode* node) {
             return t4;
         }
 
+        case AST_METHOD_CALL:
         case AST_FUNCTION_CALL: {
             char* temp = new_temp(ctx);
 
-            size_t arg_count = node->function_call.arg_count;
 
-            char* call_args = get_call_args(ctx, node->function_call.args, arg_count);
+            size_t arg_count;
+            char* call_args;
+            if (node->type == AST_FUNCTION_CALL) {
+                arg_count = node->function_call.arg_count;
+                call_args = get_call_args(ctx, node->function_call.args, arg_count);
+            }
+            else {
+                arg_count = node->method_call.arg_count;
+                call_args = get_call_args(ctx, node->method_call.args, arg_count);
+            }
             char* type = joink_type(node);
+
+            if (node->type == AST_METHOD_CALL) {
+                // pass self to method
+                // this might modify the method name
+                gen_method_call(ctx, node);
+            }
 
             // XXX clone symbol table
             // add args
-            if (arg_count > 0) {
-                emit(ctx, "  %s = call %s @%s(%s)\n", temp, type, node->function_call.name, call_args);
+            char* name;
+            if (node->type == AST_FUNCTION_CALL) {
+                name = node->function_call.name;
             }
             else {
-                emit(ctx, "  %s = call %s @%s()\n", temp, type, node->function_call.name);
+                name = node->method_call.method;
             }
+            emit(ctx, "  %s = call %s %s%s(", temp, type, ((char) name[0] != '%') ? "@" : "", name);
+            if (arg_count > 0) {
+                emit(ctx, "%s", call_args);
+            }
+            emit(ctx, ")\n");
             
             free(call_args);
 
@@ -545,7 +679,7 @@ static char* gen_expr(CodegenContext* ctx, ASTNode* node) {
                 symbol->node->type_info.cls,
                 symbol->node->type_info.name,
                 temp,
-                node->field_access.pos
+                node->field_access.pos + 1 // vtable
             );
             emit(
                 ctx,
@@ -701,7 +835,8 @@ void codegen_stmt(CodegenContext* ctx, ASTNode* node) {
     /* purely functional lang */
 
     if ((node->type == AST_FUNCTION_DEF) || (node->type == AST_METHOD_DEF)) {
-        if (!node->function_def.called) {
+        int enabled = 0;
+        if (!node->function_def.called && enabled) {
             fprintf(stderr, "WARNING - %s function was never called so it won't be generated\n", node->function_def.name);
             return;
         }
@@ -769,33 +904,47 @@ void codegen_stmt(CodegenContext* ctx, ASTNode* node) {
         char* types = get_constructor_types(ctx, node->type_decl.fields, node->type_decl.field_count);
         int total_memory = get_total_memory(node->type_decl.fields, node->type_decl.field_count);
         char* constructor_args = get_constructor_args(node->type_decl.fields, node->type_decl.field_count);
+
+        generate_vtable(ctx, node);
+
         // define struct
-        emit(ctx, "%%struct.%s = type { %s }\n", node->type_decl.name, types);
+        if (node->type_decl.field_count == 0) {
+            emit(ctx, "%%struct.%s = type { %%struct.%s_vtable* }\n", node->type_decl.name, node->type_decl.name);
+        }
+        else {
+            emit(ctx, "%%struct.%s = type { %%struct.%s_vtable*, %s }\n", node->type_decl.name, node->type_decl.name, types);
+        }
+        emit(ctx, "\n");
 
 
         // define constructor
         emit(
             ctx,
-            //"define %%struct.%s* @%s_constructor(%s) {\n",
             "define i8* @%s_constructor(%s) {\n",
-            //node->type_decl.name,
             node->type_decl.name,
             constructor_args
         );
         emit(ctx, "  %%heap_ptr = call i8* @malloc(i32 %d)\n", total_memory);
         emit(ctx, "  %%obj_ptr = bitcast i8* %%heap_ptr to %%struct.%s*\n", node->type_decl.name);
-        //emit(ctx, "  %%obj_ptr = bitcast i8* %%heap_ptr to i8*\n");
+
+        // Set vtable pointer
+        emit(ctx, "\n");
+        emit(ctx, "  %%vtable_ptr = getelementptr %%struct.%s, %%struct.%s* %%obj_ptr, i32 0, i32 0\n",
+             node->type_decl.name, node->type_decl.name);
+        emit(ctx, "  store %%struct.%s_vtable* @%s_vtable, %%struct.%s_vtable** %%vtable_ptr\n",
+             node->type_decl.name, node->type_decl.name, node->type_decl.name);
+        emit(ctx, "\n");
 
         for (size_t i = 0; i < node->type_decl.field_count; i++) {
+            size_t field_index = i + 1; // +1 for vtable pointer
             emit(
                 ctx,
-                "  %%%s_ptr = getelementptr %%struct.%s, %%struct.%s* %%obj_ptr, i32 0, i32 %d\n",
+                "  %%%s_ptr = getelementptr %%struct.%s, %%struct.%s* %%obj_ptr, i32 0, i32 %zu\n",
                 node->type_decl.fields[i]->field_def.name,
                 node->type_decl.name,
                 node->type_decl.name,
-                i
+                field_index
             );
-            // XXX double
             emit(
                 ctx,
                 "  store %s %%%s, %s* %%%s_ptr\n",
@@ -805,16 +954,17 @@ void codegen_stmt(CodegenContext* ctx, ASTNode* node) {
                 node->type_decl.fields[i]->field_def.name
             );
         }
-        //emit(ctx, "  ret %%struct.%s* %%obj_ptr\n", node->type_decl.name);
         emit(ctx, "  ret i8* %%heap_ptr\n");
         emit(ctx, "}\n", node->type_decl.name);
 
         for (size_t i = 0; i < node->type_decl.method_count; i++) {
-            node->type_decl.methods[i]->function_def.name = detach_method(
-                node->type_decl.name,
-                node->type_decl.methods[i]->function_def.name
-            );
-            codegen_stmt(ctx, node->type_decl.methods[i]);
+            if (node->type_decl.methods[i]->function_def.args_definitions[0]->type_info.kind == node->type_info.kind) {
+                node->type_decl.methods[i]->function_def.name = detach_method(
+                    node->type_decl.name,
+                    node->type_decl.methods[i]->function_def.name
+                );
+                codegen_stmt(ctx, node->type_decl.methods[i]);
+            }
         }
     }
     else {
