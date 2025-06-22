@@ -23,7 +23,8 @@ char* joink_type(ASTNode* node) {
         return "double";
     }
     else {
-        return node->type_info.name;
+        //return node->type_info.name;
+        return "i8*";
     }
 }
 
@@ -394,10 +395,8 @@ static char* gen_conditional(CodegenContext* ctx, ASTNode* node) {
     // update current label
     ctx->current_label = merge_cnt;
     char* result_temp = new_temp(ctx);
-    //emit(ctx, "  %s = phi double [ %s, %%%s ], [ %s, %%%s ]\n",
-    //    result_temp, thesis_temp, thesis_label, anti_temp, anti_label);
-    emit(ctx, "  %s = phi double [ %s, %%l%d ], [ %s, %%l%d ]\n",
-        result_temp, thesis_temp, thesis_cnt, anti_temp, anti_cnt);
+    emit(ctx, "  %s = phi %s [ %s, %%l%d ], [ %s, %%l%d ]\n",
+        result_temp, joink_type(node), thesis_temp, thesis_cnt, anti_temp, anti_cnt);
 
     free(hyp_temp);
     free(thesis_temp);
@@ -532,11 +531,20 @@ static char* gen_expr(CodegenContext* ctx, ASTNode* node) {
 
             emit(
                 ctx,
-                "  %s_ptr = getelementptr %%struct.%s, %s %s, i32 0, i32 %d\n",
+                "  %s_ref = bitcast i8* %s to %%struct.%s*\n",
+                temp,
+                symbol->temp,
+                symbol->node->type_info.cls
+            );
+
+
+            emit(
+                ctx,
+                "  %s_ptr = getelementptr %%struct.%s, %s %s_ref, i32 0, i32 %d\n",
                 temp,
                 symbol->node->type_info.cls,
                 symbol->node->type_info.name,
-                symbol->temp,
+                temp,
                 node->field_access.pos
             );
             emit(
@@ -701,14 +709,7 @@ void codegen_stmt(CodegenContext* ctx, ASTNode* node) {
 
         CodegenContext* fun_ctx = clone_codegen_context(ctx);
 
-        char* type;
-
-        if (node->type_info.kind == TYPE_STRING) {
-            type = "i8*";
-        }
-        else {
-            type = "double";
-        }
+        char* type = joink_type(node);
 
         char* entry_label = new_label(fun_ctx);
         int entry_cnt = fun_ctx->label_counter - 1;
@@ -775,13 +776,15 @@ void codegen_stmt(CodegenContext* ctx, ASTNode* node) {
         // define constructor
         emit(
             ctx,
-            "define %%struct.%s* @%s_constructor(%s) {\n",
-            node->type_decl.name,
+            //"define %%struct.%s* @%s_constructor(%s) {\n",
+            "define i8* @%s_constructor(%s) {\n",
+            //node->type_decl.name,
             node->type_decl.name,
             constructor_args
         );
         emit(ctx, "  %%heap_ptr = call i8* @malloc(i32 %d)\n", total_memory);
         emit(ctx, "  %%obj_ptr = bitcast i8* %%heap_ptr to %%struct.%s*\n", node->type_decl.name);
+        //emit(ctx, "  %%obj_ptr = bitcast i8* %%heap_ptr to i8*\n");
 
         for (size_t i = 0; i < node->type_decl.field_count; i++) {
             emit(
@@ -802,7 +805,8 @@ void codegen_stmt(CodegenContext* ctx, ASTNode* node) {
                 node->type_decl.fields[i]->field_def.name
             );
         }
-        emit(ctx, "  ret %%struct.%s* %%obj_ptr\n", node->type_decl.name);
+        //emit(ctx, "  ret %%struct.%s* %%obj_ptr\n", node->type_decl.name);
+        emit(ctx, "  ret i8* %%heap_ptr\n");
         emit(ctx, "}\n", node->type_decl.name);
 
         for (size_t i = 0; i < node->type_decl.method_count; i++) {

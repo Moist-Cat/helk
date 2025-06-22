@@ -65,11 +65,11 @@ pytest test_compiler.py
 Implementación de la máquina de estados a partir de un conjunto de expresiones regulares:
 
 \begin{enumerate}
-    \item Expandir y simplificar la cada expresión regular ($[a-z] \leftarrow abcd...z$)
+    \item Expandir y simplificar la cada expresión regular ($[a-z] \rightarrow abcd...z$)
     \item Crear los autómatas finitos no deterministas (NFA) de cada expresión regular.
     \item Construir el autómata de la unión de todos los NFAs para definir el lenguaje que reconocerá el lexer.
     \item Convertir el NFA de la unión a un DFA (autómata finito determinista), respetando las prioridades de cada regla (keywords > itentifier)
-    \item Simplificar rangos ($abcd...z \leftarrow 'a' =< x <= 'z'$)
+    \item Simplificar rangos ($abcd...z \rightarrow 'a' =< x <= 'z'$)
     \item Generar el código para simular el autómata usando un alfabeto finito ($ASCII < 128$) usando swtich y goto
 \end{enumerate}
 

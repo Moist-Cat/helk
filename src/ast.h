@@ -20,11 +20,12 @@ typedef enum: size_t {
     TYPE_ERROR
 } TypeKind;
 
-typedef struct {
+typedef struct TypeInfo {
     TypeKind kind;
     char* name; // what to print
     char* cls; // ...
     unsigned int is_literal;
+    struct TypeInfo* parent;
 } TypeInfo;
 
 typedef enum {

@@ -5,6 +5,8 @@
 #include <string.h>
 #include <stdbool.h>
 
+int phase = 0;
+
 size_t hash(const char* s) {
     size_t h = 5381;
     while(*s) h = ((h << 5) + h) + *s++;
@@ -36,6 +38,45 @@ void coerce(ASTNode* node) {
         node->type_decl.methods[j]->function_def.args_definitions[0]->type_info.cls = strdup(node->type_decl.name);
         node->type_decl.methods[j]->function_def.args_definitions[0]->type_info.kind = hash(node->type_decl.name);
     }
+}
+
+TypeInfo* common_ancestor(TypeInfo* t1, TypeInfo* t2) {
+    if (!t1 || !t2) return NULL;
+    if (t1->kind == t2->kind) return t2;
+    if (t2->kind <= 2) return t2;
+
+    fprintf(
+        stderr,
+        "INFO - Searching for the common ancestor between %zu and %zu\n",
+        t1->kind, t2->kind
+    );
+
+    // Collect all ancestors of t1
+    TypeInfo* ancestors[64];
+    size_t ancestor_count = 0;
+
+    TypeInfo* current = t1;
+    while (current && (ancestor_count < sizeof(ancestors)/sizeof(ancestors[0]) - 1)) {
+        fprintf(stderr, "DEBUG - Found ancestor %zu\n", current->kind);
+        ancestors[ancestor_count++] = current;
+        current = current->parent;
+    }
+
+    // Find first common ancestor with t2's hierarchy
+    current = t2;
+    while (current) {
+        for (size_t i = 0; i < ancestor_count; i++) {
+            if (current->kind == ancestors[i]->kind) {
+                fprintf(stderr, "INFO - Found common ancestor %zu\n", current->kind);
+                return current;
+            }
+        }
+        current = current->parent;
+    }
+
+    fprintf(stderr, "ERORR - No common ancestor!\n");
+
+    return NULL;
 }
 
 // type inference
@@ -90,17 +131,35 @@ bool solve_constraints(ConstraintSystem* cs) {
                 c->node->type_info.kind = ((TypeInfo*) (c->expected))->kind;
                 c->node->type_info.name = ((TypeInfo*) (c->expected))->name;
                 c->node->type_info.cls = ((TypeInfo*) (c->expected))->cls;
+                c->node->type_info.parent = ((TypeInfo*) (c->expected))->parent;
 
                 changed = true;
             }
 
-            // Check for conflicts
-            if(expected != TYPE_UNKNOWN &&
-               actual != TYPE_UNKNOWN &&
-               expected != actual) {
-               // XXX
-               fprintf(stderr, "ERROR - Literal type mismatch (current_type=%d); [%d, %d]\n", c->node->type, c->node->line, c->node->column);
-               res = false;
+            // conforms
+            if(
+                expected != TYPE_UNKNOWN
+                && actual != TYPE_UNKNOWN
+                && expected != actual
+            ) {
+                TypeInfo* ca = common_ancestor(&c->node->type_info, t);
+                if (ca == NULL) {
+                    // XXX
+                    fprintf(stderr, "ERROR - Literal type mismatch (current_type=%d); [%d, %d]\n", c->node->type, c->node->line, c->node->column);
+                    res = false;
+                    exit(1);
+                }
+                else {
+                    c->node->type_info.kind = ((TypeInfo*) (c->expected))->kind;
+                    c->node->type_info.name = ((TypeInfo*) (c->expected))->name;
+                    c->node->type_info.cls = ((TypeInfo*) (c->expected))->cls;
+                    c->node->type_info.parent = ((TypeInfo*) (c->expected))->parent;
+
+                    t->kind = ca->kind;
+                    t->name = ca->name;
+                    t->cls = ca->cls;
+                    t->parent = ca->parent;
+                }
             }
         }
     } while(changed);
@@ -270,11 +329,18 @@ void process_function_call(
 
     if(!function_def) {
         fprintf(stderr,  "Undefined function '%s'\n", call->function_call.name);
+        if (phase > 0) {
+            // fail silently only during symbol lookup
+            add_constraint(cs, create_ast_variable("Undefined function\n"), NULL);
+            exit(1);
+        }
         return;
     }
 
     if(function_def->type != AST_FUNCTION_DEF) {
         fprintf(stderr, "'%s' is not a function\n", call->function_call.name);
+        add_constraint(cs, create_ast_variable("Not a function\n"), NULL);
+        exit(1);
         return;
     }
 
@@ -289,6 +355,7 @@ void process_function_call(
     if(call->function_call.arg_count != function_def->function_def.arg_count) {
         fprintf(stderr, "Argument count mismatch for '%s'\n",
                     call->function_call.name);
+        exit(1);
         return;
     }
 
@@ -656,15 +723,18 @@ void process_node(ASTNode* node, ConstraintSystem* cs, SymbolTable* current_scop
         }
         case AST_CONSTRUCTOR: {
             TypeInfo *lit = malloc(sizeof(TypeInfo));
+            ASTNode* cls_def = symbol_table_lookup(current_scope, node->constructor.cls);
 
             lit->name = new_instance_type(node->constructor.cls);
             lit->cls = strdup(node->constructor.cls);
             lit->kind = hash(node->constructor.cls);
+            lit->parent = cls_def->type_info.parent;
+            fprintf(stderr, "%p\n", cls_def->type_info.parent);
             lit->is_literal = true;
 
             add_constraint(cs, node, lit);
 
-            ASTNode* cls_def = symbol_table_lookup(current_scope, node->constructor.cls);
+
 
             if (!cls_def) {
                 fprintf(stderr,  "Undefined class constructor '%s' [%d, %d]\n", node->constructor.cls, node->line, node->column);
@@ -717,7 +787,16 @@ void process_node(ASTNode* node, ConstraintSystem* cs, SymbolTable* current_scop
 
         case AST_TYPE_DEF: {
             symbol_table_add(current_scope, node->type_decl.name, node);
+            node->type_info.kind = hash(node->type_decl.name);
+            node->type_info.name = new_instance_type(node->type_decl.name);
             node->type_info.cls = node->type_decl.name;
+            if (node->type_decl.base_type != NULL) {
+                ASTNode* ref = symbol_table_lookup(current_scope, node->type_decl.base_type);
+                node->type_info.parent = &ref->type_info;
+            }
+            else {
+                node->type_info.parent = NULL;
+            };
             break;
         }
         case AST_METHOD_DEF: {
@@ -911,41 +990,6 @@ static ASTNode* transform_method_call(ASTNode* node, SymbolTable* scope) {
     new_node->type_info.cls = node->type_info.cls;
 
     return new_node;
-}
-
-
-void transform_base(ASTNode* node, ctx, SymbolTable* scope) {
-    if (node->type_decl.base_type == NULL) {
-        return;
-    }
-    // Add base function to methods if there's a parent
-    for (size_t i = 0; i < node->type_decl.method_count; i++) {
-        // Create base function only for methods that exist in parent
-        char* method_name = node->type_decl.methods[i]->function_def.name;
-        char parent_method_name[256];
-        ASTNode* base_call = lookup_method(method_name, node, scope);
-
-        // Create base function call: parent_method(self, ...)
-        // Create base function: base() => parent_method(...)
-        ASTNode* base_func = create_ast_function_def(
-            "base",
-            NULL,  // No parameters
-            0,
-            base_call
-        );
-        
-        // Add base function to method body
-        //ASTNode* new_body = create_block();
-        //new_body->block.stmt_count = 1;
-        //new_body->block.statements = malloc(sizeof(ASTNode*));
-        //new_body->block.statements[0] = base_func;
-        
-        // Append original body
-        //append_to_block(new_body, node->type_decl.methods[i]->function.body);
-        
-        // Replace method body
-        //node->type_decl.methods[i]->function.body = new_body;
-    }
 }
 
 
@@ -1416,6 +1460,7 @@ bool semantic_analysis(ASTNode *node) {
 
             sa_block(node); // reorganize code in functions (transform the parent)
 
+            phase = 0;
             _semantic_analysis(node, &cs, scope); // symbol table
             // dump old CS to reduce runtime
             free(cs.constraints);
@@ -1424,14 +1469,18 @@ bool semantic_analysis(ASTNode *node) {
             cs.count = 0;
             cs.capacity = 0;
 
+            phase = 1;
             _semantic_analysis(node, &cs, scope); // type checking (simple)
             
             solve_constraints(&cs);
+
+            phase = 2;
             _semantic_analysis(node, &cs, scope); // type checking (symbols)
 
             res = solve_constraints(&cs);
 
             // second round to get custom types
+            phase = 3;
             node = transform_ast(node, scope); // embrace FLATness (transform the children)
 
             return res;
