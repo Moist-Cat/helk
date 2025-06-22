@@ -1061,6 +1061,7 @@ void _codegen_declarations(CodegenContext* ctx, ASTNode *node) {
             break;
         }
 
+        case AST_METHOD_DEF:
         case AST_FUNCTION_DEF: {
             _codegen_declarations(ctx, node->function_def.body);
             break;

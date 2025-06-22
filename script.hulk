@@ -1,31 +1,37 @@
-type Aleph {
-    x = 0;
-    y = "10";
+type A {
+    x = 5;
+    y = 10;
 
-    constant() => 1000;
+    baz() => "This is the baz method, from A";
 
-    do(x) => self.x;   
-
-    getX() => self.x;
+    bar() => "I am A!";
 };
 
-type AlephNull inherits Aleph {
-    z = 10;
+type B inherits A {
 
-    do(x) => self.x + self.z + self.constant() + x;
-
-    setX(x) => self.x := x;
-
-    setY(y) => self.y := y;
+    bar() => "I am B!";
 };
 
+type C inherits A {
 
-let b = new Aleph(1, "20");
-let a = new AlephNull(1, "20", 10);
-b.getX();
-a.getX();
+    bar() => "I am C!";
 
-print(a.setX(16));
-print(a.x);
-prints(a.setY("potato"));
-prints(a.y);
+};
+
+function foo(x) =>
+if (x) {
+    new B(1, 2);
+} else {
+    new C(1, 3);
+};
+
+prints("");
+let a = foo(1);
+prints(a.baz());
+prints(a.bar());
+
+
+prints("");
+let b = foo(0);
+prints(b.baz());
+prints(b.bar());
