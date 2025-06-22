@@ -277,9 +277,9 @@ static char* get_constructor_args(ASTNode** args, unsigned int arg_count) {
 // Generate vtable structure
 void generate_vtable(CodegenContext* ctx, ASTNode* node) {
     // Define vtable structure type
-    emit(ctx, "%%struct.%s_vtable = type {", node->type_decl.name);
+    emit(ctx, "%%struct.%s_vtable = type {\n  ", node->type_decl.name);
     for (size_t i = 0; i < node->type_decl.method_count; i++) {
-        if (i > 0) emit(ctx, ", ");
+        if (i > 0) emit(ctx, ",\n  ");
         ASTNode* method = node->type_decl.methods[i];
         emit(
             ctx,
@@ -292,12 +292,12 @@ void generate_vtable(CodegenContext* ctx, ASTNode* node) {
             )
         );
     }
-    emit(ctx, "}\n");
+    emit(ctx, "\n}\n");
 
     // Create global vtable instance
-    emit(ctx, "@%s_vtable = global %%struct.%s_vtable {", node->type_decl.name, node->type_decl.name);
+    emit(ctx, "@%s_vtable = global %%struct.%s_vtable {\n  ", node->type_decl.name, node->type_decl.name);
     for (size_t i = 0; i < node->type_decl.method_count; i++) {
-        if (i > 0) emit(ctx, ", ");
+        if (i > 0) emit(ctx, ",\n  ");
         char* mangled_name;
         if (node->type_decl.methods[i]->function_def.args_definitions[0]->type_info.kind != node->type_info.kind) {
             mangled_name = node->type_decl.methods[i]->function_def.name;
@@ -319,7 +319,7 @@ void generate_vtable(CodegenContext* ctx, ASTNode* node) {
         );
         emit(ctx, " @%s", mangled_name);
     }
-    emit(ctx, "}\n");
+    emit(ctx, "\n}\n");
 }
 
 void gen_method_call(CodegenContext* ctx, ASTNode* node) {

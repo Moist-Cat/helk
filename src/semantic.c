@@ -37,6 +37,8 @@ void coerce(ASTNode* node) {
         node->type_decl.methods[j]->function_def.args_definitions[0]->type_info.name = new_instance_type(node->type_decl.name);
         node->type_decl.methods[j]->function_def.args_definitions[0]->type_info.cls = strdup(node->type_decl.name);
         node->type_decl.methods[j]->function_def.args_definitions[0]->type_info.kind = hash(node->type_decl.name);
+        node->type_decl.methods[j]->function_def.args_definitions[0]->type_info.parent = node->type_info.parent;
+        node->type_decl.methods[j]->function_def.args_definitions[0]->type_info.is_polymorphic = true;
     }
 }
 
@@ -167,10 +169,10 @@ bool solve_constraints(ConstraintSystem* cs) {
                     exit(1);
                 }
                 else {
-                    c->node->type_info.kind = ((TypeInfo*) (c->expected))->kind;
-                    c->node->type_info.name = ((TypeInfo*) (c->expected))->name;
-                    c->node->type_info.cls = ((TypeInfo*) (c->expected))->cls;
-                    c->node->type_info.parent = ((TypeInfo*) (c->expected))->parent;
+                    c->node->type_info.kind = ca->kind;
+                    c->node->type_info.name = ca->name;
+                    c->node->type_info.cls = ca->cls;
+                    c->node->type_info.parent = ca->parent;
                     c->node->type_info.is_polymorphic = true;
 
                     //t->kind = ca->kind;
@@ -338,7 +340,7 @@ int lookup_index(ASTNode* node, ASTNode* cls, SymbolTable* scope, ASTNode** corr
     return -(cls->type_decl.field_count + index);
 }
 
-int lookup_method_index(ASTNode* node, ASTNode* cls, SymbolTable* scope) {
+int lookup_method_index(ASTNode* node, ASTNode* cls, SymbolTable* scope, SymbolTable* lookup_scope) {
     int index = 0;
     if (cls->type_decl.base_type) {
         fprintf(
@@ -349,7 +351,7 @@ int lookup_method_index(ASTNode* node, ASTNode* cls, SymbolTable* scope) {
         );
         ASTNode* parent = symbol_table_lookup(scope, cls->type_decl.base_type);
 
-        int temp = lookup_method_index(node, parent, scope);
+        int temp = lookup_method_index(node, parent, scope, lookup_scope);
 
         if (temp > 0) {
             return temp;
@@ -359,25 +361,33 @@ int lookup_method_index(ASTNode* node, ASTNode* cls, SymbolTable* scope) {
         index = -temp;
     }
 
+    int overriden = 0;
     for (int i = 0; i < (int) cls->type_decl.method_count; i++) {
         fprintf(
             stderr,
             "DEBUG - Comparing %s and %s during method access\n",
             cls->type_decl.methods[i]->function_def.name,
             node->method_call.method
-         );
+        );
+        ASTNode* overriden_method = symbol_table_lookup(lookup_scope, cls->type_decl.methods[i]->function_def.name);
+        if (overriden_method) {
+            overriden += 1;
+            // this is definitely not the method we want
+            continue;
+        }
         if (strcmp(cls->type_decl.methods[i]->function_def.name, node->method_call.method) == 0) {
             fprintf(
                 stderr,
                 "INFO - Found position for method %s -> %d\n",
                 cls->type_decl.methods[i]->function_def.name,
-                i + index
+                i + index - overriden
              );
-            node->method_call.pos = i + index;
-            return i + index;
+            node->method_call.pos = i + index - overriden;
+            return i + index - overriden;
         }
+        symbol_table_add(lookup_scope, cls->type_decl.methods[i]->function_def.name, cls->type_decl.methods[i]);
     }
-    return -(cls->type_decl.method_count + index);
+    return -(cls->type_decl.method_count + index - overriden);
 }
 
 void process_function_call(
@@ -843,7 +853,10 @@ void process_node(ASTNode* node, ConstraintSystem* cs, SymbolTable* current_scop
                 break;
             }
             ASTNode* cls = symbol_table_lookup(current_scope, node->method_call.cls->type_info.cls);
-            lookup_method_index(node, cls, current_scope);
+
+
+            SymbolTable* lookup_scope = create_symbol_table(NULL);
+            lookup_method_index(node, cls, current_scope, lookup_scope);
             break;
         }
 
@@ -852,6 +865,7 @@ void process_node(ASTNode* node, ConstraintSystem* cs, SymbolTable* current_scop
             node->type_info.kind = hash(node->type_decl.name);
             node->type_info.name = new_instance_type(node->type_decl.name);
             node->type_info.cls = node->type_decl.name;
+
             if (node->type_decl.base_type != NULL) {
                 ASTNode* ref = symbol_table_lookup(current_scope, node->type_decl.base_type);
                 node->type_info.parent = &ref->type_info;
@@ -859,6 +873,7 @@ void process_node(ASTNode* node, ConstraintSystem* cs, SymbolTable* current_scop
             else {
                 node->type_info.parent = NULL;
             };
+            coerce(node);
             break;
         }
         case AST_METHOD_DEF: {
@@ -1127,7 +1142,7 @@ ASTNode* transform_ast(ASTNode* node, SymbolTable* scope) {
         }
         case AST_TYPE_DEF: {
             fprintf(stderr, "INFO - Found type def %s\n", node->type_decl.name);
-            coerce(node);
+            //coerce(node);
             for (size_t i = 0; i < node->type_decl.method_count; i++) {
                 node->type_decl.methods[i] = transform_ast(node->type_decl.methods[i], scope);
             }
