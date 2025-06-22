@@ -124,8 +124,9 @@ bool solve_constraints(ConstraintSystem* cs) {
             }
 
             // Propagate concrete -> unknown
-            if(expected != TYPE_UNKNOWN &&
-               actual == TYPE_UNKNOWN) {
+            if((expected != TYPE_UNKNOWN
+               && actual == TYPE_UNKNOWN)
+            ) {
                 fprintf(stderr, "INFO - Solved type for node type=%d; to %zu\n", c->node->type, c->node->type_info.kind);
 
                 c->node->type_info.kind = ((TypeInfo*) (c->expected))->kind;
@@ -133,6 +134,21 @@ bool solve_constraints(ConstraintSystem* cs) {
                 c->node->type_info.cls = ((TypeInfo*) (c->expected))->cls;
                 c->node->type_info.parent = ((TypeInfo*) (c->expected))->parent;
                 c->node->type_info.is_polymorphic = ((TypeInfo*) (c->expected))->is_polymorphic;
+
+                changed = true;
+            }
+
+            // reverse
+            if((expected == TYPE_UNKNOWN
+               && actual != TYPE_UNKNOWN)
+            ) {
+                fprintf(stderr, "INFO - Solved type for node type=%d; to %zu\n", c->node->type, c->node->type_info.kind);
+
+                ((TypeInfo*) (c->expected))->kind = c->node->type_info.kind;
+                ((TypeInfo*) (c->expected))->name = c->node->type_info.name;
+                ((TypeInfo*) (c->expected))->cls = c->node->type_info.cls;
+                ((TypeInfo*) (c->expected))->parent = c->node->type_info.parent;
+                ((TypeInfo*) (c->expected))->is_polymorphic = c->node->type_info.is_polymorphic;
 
                 changed = true;
             }
@@ -157,11 +173,11 @@ bool solve_constraints(ConstraintSystem* cs) {
                     c->node->type_info.parent = ((TypeInfo*) (c->expected))->parent;
                     c->node->type_info.is_polymorphic = true;
 
-                    t->kind = ca->kind;
-                    t->name = ca->name;
-                    t->cls = ca->cls;
-                    t->parent = ca->parent;
-                    t->is_polymorphic = true;
+                    //t->kind = ca->kind;
+                    //t->name = ca->name;
+                    //t->cls = ca->cls;
+                    //t->parent = ca->parent;
+                    //t->is_polymorphic = true;
                 }
             }
         }
@@ -316,6 +332,7 @@ int lookup_index(ASTNode* node, ASTNode* cls, SymbolTable* scope, ASTNode** corr
              );
             node->field_access.pos = i + index;
             *correct_field = cls->type_decl.fields[i];
+            return i + index;
         }
     }
     return -(cls->type_decl.field_count + index);
@@ -352,11 +369,12 @@ int lookup_method_index(ASTNode* node, ASTNode* cls, SymbolTable* scope) {
         if (strcmp(cls->type_decl.methods[i]->function_def.name, node->method_call.method) == 0) {
             fprintf(
                 stderr,
-                "INFO - Found position for %s -> %d\n",
+                "INFO - Found position for method %s -> %d\n",
                 cls->type_decl.methods[i]->function_def.name,
                 i + index
              );
             node->method_call.pos = i + index;
+            return i + index;
         }
     }
     return -(cls->type_decl.method_count + index);
@@ -1109,6 +1127,7 @@ ASTNode* transform_ast(ASTNode* node, SymbolTable* scope) {
         }
         case AST_TYPE_DEF: {
             fprintf(stderr, "INFO - Found type def %s\n", node->type_decl.name);
+            coerce(node);
             for (size_t i = 0; i < node->type_decl.method_count; i++) {
                 node->type_decl.methods[i] = transform_ast(node->type_decl.methods[i], scope);
             }
@@ -1116,7 +1135,7 @@ ASTNode* transform_ast(ASTNode* node, SymbolTable* scope) {
                 node->type_decl.fields[i] = transform_ast(node->type_decl.fields[i], scope);
             }
 
-            coerce(node);
+            //coerce(node);
 
             if (node->type_decl.base_type) {
                 fprintf(
@@ -1228,126 +1247,87 @@ void sa_block(ASTNode *node) {
 }
 
 void inherit(ASTNode* node, ASTNode* parent) {
-    if (!parent) {
-        return;
+    if (!parent) return;
+
+    // 1. Handle field inheritance
+    unsigned int total_fields = parent->type_decl.field_count + node->type_decl.field_count;
+    ASTNode** new_fields = malloc(total_fields * sizeof(ASTNode*));
+
+    // Copy parent fields
+    for (unsigned int i = 0; i < parent->type_decl.field_count; i++) {
+        new_fields[i] = parent->type_decl.fields[i];
     }
-    fprintf(
-        stderr,
-        "INFO - Parent methods: %d; Child methods=%d\n",
-        parent->type_decl.method_count,
-        node->type_decl.method_count
-    );
-    fprintf(
-        stderr,
-        "INFO - Parent fields: %d; Child fields=%d\n",
-        parent->type_decl.field_count,
-        node->type_decl.field_count
-    );
 
-    // sanity check
+    // Copy child fields
     for (unsigned int i = 0; i < node->type_decl.field_count; i++) {
-        for (unsigned int j = i; j < parent->type_decl.field_count; j++) {
-            if (
-                strcmp(node->type_decl.fields[i]->field_def.name, parent->type_decl.fields[j]->field_def.name) == 0
-            ) {
-                fprintf(
-                    stderr,
-                    "ERROR - Redeclaration of field '%s' in '%s'!",
-                    node->type_decl.fields[i]->field_def.name,
-                    node->type_decl.name
-                );
-
+        // Check for field name conflicts
+        for (unsigned int j = 0; j < parent->type_decl.field_count; j++) {
+            if (strcmp(node->type_decl.fields[i]->field_def.name,
+                      parent->type_decl.fields[j]->field_def.name) == 0) {
+                fprintf(stderr, "ERROR - Redeclaration of field '%s' in '%s'!\n",
+                       node->type_decl.fields[i]->field_def.name,
+                       node->type_decl.name);
+                free(new_fields);
                 exit(1);
             }
         }
-    }
-    unsigned int old_count = node->type_decl.field_count;
-    node->type_decl.field_count += parent->type_decl.field_count;
-    node->type_decl.fields = realloc(
-        node->type_decl.fields,
-        node->type_decl.field_count * sizeof(ASTNode*)
-    );
-    for (unsigned int i = 0; i < parent->type_decl.field_count; i++) {
-        if (i < old_count) {
-            // reallocate own field first
-            node->type_decl.fields[i + parent->type_decl.field_count] = node->type_decl.fields[i];
-        }
-        node->type_decl.fields[i] = parent->type_decl.fields[i];
+        new_fields[parent->type_decl.field_count + i] = node->type_decl.fields[i];
     }
 
-    unsigned int counter = 0;
-    old_count = node->type_decl.method_count;
-    node->type_decl.methods = realloc(
-        node->type_decl.methods,
-        (node->type_decl.method_count + parent->type_decl.method_count) * sizeof(ASTNode*)
-    );
-    for (unsigned int i = old_count; i < parent->type_decl.method_count + old_count; i++) {
-        node->type_decl.methods[i] = NULL;
-    }
+    // Replace old fields array
+    free(node->type_decl.fields);
+    node->type_decl.fields = new_fields;
+    node->type_decl.field_count = total_fields;
 
+    // 2. Handle method inheritance
+    unsigned int total_methods = parent->type_decl.method_count + node->type_decl.method_count;
+    ASTNode** new_methods = malloc(total_methods * sizeof(ASTNode*));
+    unsigned int method_count = 0;
+
+    // Copy parent methods (will be overridden if needed)
     for (unsigned int i = 0; i < parent->type_decl.method_count; i++) {
-        if (i < old_count) {
-            // reallocate own field first
-            for (unsigned int j = 0; j < parent->type_decl.method_count; j++) {
-                if (
-                    strcmp(
-                        node->type_decl.methods[i]->function_def.name,
-                        parent->type_decl.methods[j]->function_def.name
-                    ) == 0
-                ) {
-                    fprintf(
-                        stderr,
-                        "%s appears in both parent and child\n",
-                        node->type_decl.methods[i]->function_def.name
-                    );
-                    counter += 1;
-                    if (node->type_decl.methods[j] == NULL) {
-                        // lucky
-                        node->type_decl.methods[j] = node->type_decl.methods[i];
-                    }
-                    else {
-                        ASTNode* temp = node->type_decl.methods[j];
-                        node->type_decl.methods[j] = node->type_decl.methods[i];
-                        // move to correct position
-                        node->type_decl.methods[i] = temp;
-                    }
-                    break;
-                }
-            }
-            node->type_decl.methods[i + parent->type_decl.method_count] = parent->type_decl.methods[i];
-        }
-        fprintf(
-            stderr,
-            "INFO - (counter=%d, method_count=%d, parent_method=%s i=%d)\n",
-            counter,
-            node->type_decl.method_count, parent->type_decl.methods[i]->function_def.name,
-            i
-        );
-        if (
-            strcmp(
-                node->type_decl.methods[i]->function_def.name,
-                parent->type_decl.methods[i]->function_def.name
-            ) == 0
-        ) {
-            // do not copy overriden method
-            continue;
-        }
-        node->type_decl.methods[i] = parent->type_decl.methods[i];
+        new_methods[method_count++] = parent->type_decl.methods[i];
     }
 
-    fprintf(
-        stderr,
-        "INFO - Parent fields: %d; Child fields=%d\n",
-        parent->type_decl.field_count,
-        node->type_decl.field_count
-    );
+    // Process child methods
+    for (unsigned int i = 0; i < node->type_decl.method_count; i++) {
+        int overridden = 0;
 
-    unsigned int final_count = (parent->type_decl.method_count + node->type_decl.method_count) - counter;
-    node->type_decl.method_count = final_count;
-    node->type_decl.methods = realloc(
-        node->type_decl.methods,
-        (final_count) * sizeof(ASTNode*)
-    );
+        // Check if this method overrides a parent method
+        for (unsigned int j = 0; j < method_count; j++) {
+            if (strcmp(node->type_decl.methods[i]->function_def.name,
+                      new_methods[j]->function_def.name) == 0) {
+                // Replace parent method with child override
+                new_methods[j] = node->type_decl.methods[i];
+                overridden = 1;
+                break;
+            }
+        }
+
+        if (!overridden) {
+            // Add as new method
+            new_methods[method_count++] = node->type_decl.methods[i];
+        }
+    }
+
+    // Replace old methods array
+    free(node->type_decl.methods);
+    node->type_decl.methods = new_methods;
+    node->type_decl.method_count = method_count;
+
+    // 3. Shrink array to actual size
+    if (method_count < total_methods) {
+        ASTNode** shrunk_methods = realloc(new_methods, method_count * sizeof(ASTNode*));
+        if (shrunk_methods) {
+            node->type_decl.methods = shrunk_methods;
+        }
+    }
+
+    // Log final counts
+    fprintf(stderr, "INFO - Parent fields: %d; Child fields: %d\n",
+           parent->type_decl.field_count, node->type_decl.field_count);
+    fprintf(stderr, "INFO - Parent methods: %d; Child methods: %d\n",
+           parent->type_decl.method_count, node->type_decl.method_count);
 }
 
 void _semantic_analysis(ASTNode *node, ConstraintSystem* cs, SymbolTable* scope) {

@@ -20,7 +20,8 @@ char* joink_type(ASTNode* node) {
     }
     else if (node->type_info.kind == TYPE_UNKNOWN) {
         fprintf(stderr, "WARNING - Type of node %d unknown during codegen\n", node->type);
-        return "(unkown)";
+        //return "(unkown)";
+        return "double";
     }
     else {
         //return node->type_info.name;
@@ -67,6 +68,8 @@ int get_total_memory(ASTNode** fields, unsigned int field_count) {
         // XXX double
         total += 8;
     }
+    // vtable!
+    total += 8;
 
     return total;
 }
@@ -1032,10 +1035,16 @@ void _codegen_declarations(CodegenContext* ctx, ASTNode *node) {
             _codegen_declarations(ctx, node->variable_def.body);
             break;
         }
-
+        case AST_METHOD_CALL: {
+            for (size_t i = 0; i < node->method_call.arg_count; i++) {
+                fprintf(stderr, "%s %p\n", node->method_call.method, node->method_call.args[i]);
+                _codegen_declarations(ctx, node->method_call.args[i]);
+            }
+            break;
+        }
         case AST_FUNCTION_CALL: {
             for (size_t i = 0; i < node->function_call.arg_count; i++) {
-                fprintf(stderr, "%s %p", node->function_call.name, node->function_call.args[i]);
+                fprintf(stderr, "%s %p\n", node->function_call.name, node->function_call.args[i]);
                 _codegen_declarations(ctx, node->function_call.args[i]);
             }
             break;
